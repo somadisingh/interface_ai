@@ -177,6 +177,10 @@ def test_session_timeout_mid_flow() -> None:
     r = c.get("/members/12345")
     assert r.url.path == "/login"
     assert "SESSION HAS EXPIRED" in r.text
+    # Fires once: signing on again gives a session that does not expire.
+    c.post("/login", data={"uid": USERNAME, "pwd": PASSWORD})
+    for _ in range(5):
+        assert c.get("/home").url.path == "/home"
 
 
 def test_error_500_on_matching_paths(client: TestClient) -> None:

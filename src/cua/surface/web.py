@@ -157,6 +157,8 @@ class WebSurface:
         for hop in path:
             nxt = None
             for child in frame.child_frames:
+                if child.is_detached():  # stale frames linger after a reload
+                    continue
                 if hop.name and child.name == hop.name:
                     nxt = child
                     break
@@ -168,16 +170,57 @@ class WebSurface:
             frame = nxt
         return frame
 
+    def _live_frames(self) -> list[Frame]:
+        return [f for f in self.page.frames if not f.is_detached()]
+
     # ------------------------------------------------------------------ perception
 
     def current_url(self) -> str:
         return self.page.url
 
+    def settle(self, timeout_ms: int = 5000) -> None:
+        """Let navigations triggered by the last action finish in every frame."""
+        for frame in self._live_frames():
+            try:
+                frame.wait_for_load_state("load", timeout=timeout_ms)
+            except PlaywrightError:
+                continue
+        self.page.wait_for_timeout(100)
+
+    def wait(self, ms: int) -> None:
+        self.page.wait_for_timeout(ms)
+
+    def label_of(self, element: Resolved) -> str:
+        """Visible label of a control (text, value of input buttons, aria-label)."""
+        try:
+            text = element.handle.inner_text(timeout=500).strip()
+            if text:
+                return text
+            for attr in ("value", "aria-label", "title"):
+                value = element.handle.get_attribute(attr, timeout=500)
+                if value:
+                    return value.strip()
+        except PlaywrightError:
+            pass
+        return ""
+
+    def text_excerpt(self, limit: int = 600) -> str:
+        """Visible text of every frame, compacted (for 'observed' in failure reports)."""
+        parts = []
+        for frame in self._live_frames():
+            try:
+                text = " ".join(str(frame.evaluate(dom_scripts.BODY_TEXT)).split())
+            except PlaywrightError:
+                continue
+            if text:
+                parts.append(f"[{self.frame_label(frame)}] {text}")
+        return " | ".join(parts)[:limit]
+
     def observe(self, *, screenshot: bool = False, max_per_frame: int = 150) -> Observation:
         elements: list[ElementInfo] = []
         frames: list[FrameText] = []
         self._ref_frames = {}
-        for frame in self.page.frames:
+        for frame in self._live_frames():
             label = self.frame_label(frame)
             try:
                 raw = frame.evaluate(
@@ -267,8 +310,14 @@ class WebSurface:
         elif isinstance(spec, LabelLocator):
             loc = frame.get_by_label(t(spec.text), exact=spec.exact)
         elif isinstance(spec, AnchorLocator):
-            row = frame.locator(_ROW).filter(has=frame.get_by_text(t(spec.anchor_text), exact=True))
-            loc = row.get_by_role(spec.role) if spec.role else row.locator(_CONTROLS)  # type: ignore[arg-type]
+            anchor = frame.get_by_text(t(spec.anchor_text), exact=True)
+            row = frame.locator(_ROW).filter(has=anchor)
+            if spec.role == "cell":  # the value cell beside a label cell
+                loc = row.locator("td, th").filter(has_not=anchor)
+            elif spec.role:
+                loc = row.get_by_role(spec.role)  # type: ignore[arg-type]
+            else:
+                loc = row.locator(_CONTROLS)
         elif isinstance(spec, TableCellLocator):
             token = secrets.token_hex(4)
             frame.evaluate(dom_scripts.CLEAR_MARKS, "data-cua-cell")
@@ -318,7 +367,7 @@ class WebSurface:
         raise TypeError(f"unsupported condition {condition!r}")  # pragma: no cover
 
     def _texts(self, path: Sequence[FrameRef] | None) -> list[str]:
-        frames = self.page.frames if path is None else [f for f in [self._frame(path)] if f]
+        frames = self._live_frames() if path is None else [f for f in [self._frame(path)] if f]
         out: list[str] = []
         for frame in frames:
             try:
@@ -399,7 +448,7 @@ class WebSurface:
         if facts["label"]:
             candidates.append(LabelLocator(text=facts["label"]))
         if facts["anchor"]:
-            anchor_role = role if role in _ARIA_ROLES and role != "cell" else None
+            anchor_role = role if role in _ARIA_ROLES else None
             candidates.append(AnchorLocator(anchor_text=facts["anchor"], role=anchor_role))
         if facts["table_cell"]:
             candidates.append(TableCellLocator(**facts["table_cell"]))
@@ -479,7 +528,7 @@ class WebSurface:
         appears, in every frame."""
         locators: list[Locator] = [m.handle for m in mask]
         if mask_text_patterns:
-            for frame in self.page.frames:
+            for frame in self._live_frames():
                 try:
                     if frame.evaluate(dom_scripts.MARK_TEXT_MATCHES, list(mask_text_patterns)):
                         locators.append(frame.locator("[data-cua-mask]"))

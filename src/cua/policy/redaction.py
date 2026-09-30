@@ -27,7 +27,7 @@ _SECRET_KEY = re.compile(
 )
 _SSN = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
 _CARD = re.compile(r"\b(?:\d[ -]?){12,18}\d\b")
-_EMAIL = re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b")
+_EMAIL = re.compile(r"\b[\w.+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b")
 
 
 def _luhn_ok(digits: str) -> bool:
@@ -107,4 +107,4 @@ class Redactor:
         """JavaScript regex sources for masking matching text in screenshots."""
         literal = [re.escape(v) for v in sorted(self._secrets, key=len, reverse=True)]
         literal += [_whole(v) for v in sorted(self._pii, key=len, reverse=True)]
-        return [*literal, r"\b\d{3}-\d{2}-\d{4}\b", r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b"]
+        return [*literal, r"\b\d{3}-\d{2}-\d{4}\b", _EMAIL.pattern]

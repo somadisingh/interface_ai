@@ -39,6 +39,7 @@ FailureCategory = Literal[
     "RECOVERY_EXHAUSTED",  # a known interstitial kept recurring past its limit
     "APPROVAL_DENIED",  # a human rejected an irreversible step
     "HUMAN_ABORTED",  # a human aborted the run during a handoff
+    "CONFIGURATION_ERROR",  # the runtime is misconfigured (e.g. a required secret is unset)
 ]
 
 

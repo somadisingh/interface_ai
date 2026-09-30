@@ -61,6 +61,7 @@ def create_app(config: MockCoreConfig | None = None) -> FastAPI:
     app.state.config = cfg
     app.state.store = store
     app.state.sessions = sessions
+    app.state.timeout_fired = False
 
     # ------------------------------------------------------------------ helpers
 
@@ -104,8 +105,10 @@ def create_app(config: MockCoreConfig | None = None) -> FastAPI:
             session.requests += 1
             if (
                 faults.session_timeout_after is not None
+                and not app.state.timeout_fired
                 and session.requests > faults.session_timeout_after
             ):
+                app.state.timeout_fired = True  # fires once per arming of the fault
                 sessions.pop(session.token, None)
                 return _expired()
             path = request.url.path
@@ -376,6 +379,7 @@ def create_app(config: MockCoreConfig | None = None) -> FastAPI:
     async def set_faults(request: Request) -> JSONResponse:
         body = await request.json()
         cfg.faults = Faults.parse(body.get("spec", ""))
+        app.state.timeout_fired = False
         return JSONResponse(cfg.faults.describe())
 
     @app.post("/__admin/reset")
@@ -383,6 +387,7 @@ def create_app(config: MockCoreConfig | None = None) -> FastAPI:
         store.reset()
         sessions.clear()
         cfg.faults = Faults()
+        app.state.timeout_fired = False
         return JSONResponse({"ok": True})
 
     @app.get("/__admin/state")

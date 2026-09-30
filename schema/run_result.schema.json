@@ -124,7 +124,8 @@
             "SESSION_UNRECOVERABLE",
             "RECOVERY_EXHAUSTED",
             "APPROVAL_DENIED",
-            "HUMAN_ABORTED"
+            "HUMAN_ABORTED",
+            "CONFIGURATION_ERROR"
           ],
           "title": "Category",
           "type": "string"

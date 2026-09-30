@@ -163,3 +163,7 @@ def test_policy_is_enforced_by_the_browser(mockcore_url: str) -> None:
         reasons = [b.reason for b in s.blocked]
         assert any("denied pattern" in r for r in reasons)
         assert any("not in the allowlist" in r for r in reasons)
+
+
+def test_capability_refs_are_not_mistaken_for_email_addresses() -> None:
+    assert Redactor().text("mockcore/session.sign_on@1.0.0") == "mockcore/session.sign_on@1.0.0"

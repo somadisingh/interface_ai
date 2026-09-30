@@ -53,7 +53,8 @@ class Faults:
     slow_ms: int = 0
     """Delay every main-frame page by this many milliseconds."""
     session_timeout_after: int | None = None
-    """Expire the session after this many authenticated main-frame requests."""
+    """Expire the session after this many authenticated main-frame requests. Fires once per
+    arming (setting the fault again re-arms it), so recovery by signing on again can work."""
     error_500_paths: tuple[str, ...] = ()
     """Return an application error page for paths starting with any of these prefixes."""
     permission_denied: bool = False

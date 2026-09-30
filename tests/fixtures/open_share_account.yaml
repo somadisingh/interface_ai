@@ -1,0 +1,123 @@
+# Test-only fixture: an irreversible flow, used to exercise the approval gate in replay.
+schema_version: "1.0"
+id: member.open_share_account
+version: 1.0.0
+summary: Open a new share sub-account for a member, funded from an existing account.
+app: {product: mockcore, product_versions: ">=4.0,<5.0", surface: web}
+requires: [session.sign_on]
+
+inputs:
+  member_id: {type: string, description: Member number, pattern: '^[0-9]{1,10}$'}
+  account_type: {type: enum, description: Share type code, enum: [S01, S05, S20, S30]}
+  nickname: {type: string, description: Nickname for the new account}
+  deposit: {type: money, description: Opening deposit}
+  funding_suffix: {type: string, description: Suffix of the funding account, pattern: '^S[0-9]{2}$'}
+
+outputs:
+  confirmation_number: {type: string, description: Confirmation number of the opening}
+
+outcomes:
+  MEMBER_NOT_FOUND: {description: No member matches the given member number.}
+  VALIDATION_REJECTED: {description: The application rejected the account details.}
+
+targets:
+  nav_member_search:
+    description: Member Search link
+    frame: [{name: nav}]
+    locators: [{strategy: role, role: link, name: Member Search}]
+  member_id_field:
+    description: Member ID text box
+    frame: [{name: main}]
+    locators: [{strategy: anchor, anchor_text: "Member ID:", role: textbox}]
+  search_button:
+    description: Search span button
+    frame: [{name: main}]
+    locators: [{strategy: text, text: Search}]
+  result_member_link:
+    description: Member link in results
+    frame: [{name: main}]
+    locators: [{strategy: role, role: link, name: "{{inputs.member_id}}"}]
+  open_subaccount_link:
+    description: Open Sub-Account link
+    frame: [{name: main}]
+    locators: [{strategy: role, role: link, name: Open Sub-Account}]
+  account_type_select:
+    description: Account Type dropdown
+    frame: [{name: main}]
+    locators: [{strategy: anchor, anchor_text: "Account Type:", role: combobox}]
+  nickname_field:
+    description: Nickname text box
+    frame: [{name: main}]
+    locators: [{strategy: anchor, anchor_text: "Nickname:", role: textbox}]
+  deposit_field:
+    description: Opening Deposit text box
+    frame: [{name: main}]
+    locators: [{strategy: anchor, anchor_text: "Opening Deposit:", role: textbox}]
+  funding_select:
+    description: Fund From dropdown
+    frame: [{name: main}]
+    locators: [{strategy: anchor, anchor_text: "Fund From:", role: combobox}]
+  continue_button:
+    description: Continue span button
+    frame: [{name: main}]
+    locators: [{strategy: text, text: Continue}]
+  confirm_button:
+    description: Confirm & Open Account submit button
+    frame: [{name: main}]
+    locators: [{strategy: role, role: button, name: Confirm & Open Account}]
+  confirmation_number_cell:
+    description: Confirmation number value
+    frame: [{name: main}]
+    locators: [{strategy: anchor, anchor_text: Confirmation Number, role: cell}]
+
+steps:
+  - id: open_member_search
+    intent: Open member search
+    action: {type: click, target: nav_member_search}
+    expect: [{kind: visible, target: member_id_field}]
+  - id: enter_member_id
+    intent: Enter the member number
+    action: {type: fill, target: member_id_field, value: "{{inputs.member_id}}"}
+  - id: submit_search
+    intent: Search
+    action: {type: click, target: search_button}
+    expect: [{kind: visible, target: result_member_link}]
+    outcomes:
+      - {when: {kind: text, pattern: NO MEMBERS FOUND}, outcome: MEMBER_NOT_FOUND}
+  - id: open_member
+    intent: Open the member
+    action: {type: click, target: result_member_link}
+    expect: [{kind: visible, target: open_subaccount_link}]
+  - id: open_form
+    intent: Open the sub-account form
+    action: {type: click, target: open_subaccount_link}
+    expect: [{kind: visible, target: account_type_select}]
+  - id: choose_type
+    intent: Choose the share type
+    action: {type: select, target: account_type_select, option: "{{inputs.account_type}}"}
+  - id: enter_nickname
+    intent: Enter the nickname
+    action: {type: fill, target: nickname_field, value: "{{inputs.nickname}}"}
+  - id: enter_deposit
+    intent: Enter the opening deposit
+    action: {type: fill, target: deposit_field, value: "{{inputs.deposit}}"}
+  - id: choose_funding
+    intent: Choose the funding account
+    action: {type: select, target: funding_select, option: "{{inputs.funding_suffix}}"}
+  - id: continue_to_review
+    intent: Continue to the review page
+    action: {type: click, target: continue_button}
+    expect: [{kind: visible, target: confirm_button}]
+    outcomes:
+      - {when: {kind: text, pattern: 'E21\d', frame: [{name: main}]}, outcome: VALIDATION_REJECTED}
+  - id: confirm
+    intent: Confirm and open the account
+    action: {type: click, target: confirm_button}
+    risk: irreversible
+    expect: [{kind: text, pattern: SHARE ACCOUNT OPENED SUCCESSFULLY, frame: [{name: main}]}]
+  - id: read_confirmation
+    intent: Read the confirmation number
+    action: {type: extract, target: confirmation_number_cell, into: confirmation_number}
+
+success: [{kind: output, name: confirmation_number}]
+provenance: {source: hand_authored}

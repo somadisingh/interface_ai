@@ -100,7 +100,7 @@ confirm. Confirm is irreversible and uses a single-use transaction token.
 | `maintenance` | "Scheduled maintenance" interstitial before main pages, once per session |
 | `modal` | "Password expires" overlay that blocks clicks, once per session |
 | `slow=MS` | Delays every main-frame page |
-| `session_timeout=N` | Session expires after N page loads; the main frame falls back to sign-on |
+| `session_timeout=N` | Session expires (once) after N page loads; the main frame falls back to sign-on |
 | `error500=/prefix` | Application error page (HTTP 500) for matching paths |
 | `permission_denied` | Member detail returns ACCESS DENIED |
 
