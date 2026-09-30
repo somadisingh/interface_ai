@@ -1,0 +1,7 @@
+{% extends "legacy.html" %}
+{% block section %}HOME{% endblock %}
+{% block content %}
+<p>Welcome, <b>{{ user|upper }}</b>. Select a function from the menu.</p>
+<table class="grid" cellspacing="0"><tr class="h"><td>System Messages</td></tr>
+<tr><td>No new messages.</td></tr></table>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "legacy.html" %}
+{% block section %}OPEN SHARE ACCOUNT - {{ m.member_id }}{% endblock %}
+{% block content %}
+<b>{{ m.display_name }}</b><br><br>
+{% for e in errors %}<font color="red"><b>{{ e }}</b></font><br>{% endfor %}
+<form method="post" action="/members/{{ m.member_id }}/subaccounts/new" name="f2">
+<table cellpadding="2">
+  <tr><td>Account Type:</td><td><select name="type">
+    <option value="">-- Select --</option>
+    {% for code, name in types.items() %}<option value="{{ code }}" {% if values.type == code %}selected{% endif %}>{{ code }} {{ name }}</option>{% endfor %}
+  </select></td></tr>
+  <tr><td>Nickname:</td><td><input type="text" name="nickname" size="22" value="{{ values.nickname or '' }}"></td></tr>
+  <tr><td>Opening Deposit:</td><td><input type="text" name="deposit" size="12" value="{{ values.deposit or '' }}"></td></tr>
+  <tr><td>Fund From:</td><td><select name="fund">
+    <option value="">-- Select --</option>
+    {% for a in m.accounts %}<option value="{{ a.suffix }}" {% if values.fund == a.suffix %}selected{% endif %}>{{ a.suffix }} {{ a.type }} ({{ a.balance|money }})</option>{% endfor %}
+  </select></td></tr>
+  <tr><td></td><td><span class="btn" onclick="document.forms['f2'].submit()">{{ L.continue_button }}</span>
+     &nbsp; <span class="btn" onclick="go('/members/{{ m.member_id }}')">Cancel</span></td></tr>
+</table>
+</form>
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "legacy.html" %}
+{% block section %}MEMBER INQUIRY - {{ m.member_id }}{% endblock %}
+{% block content %}
+<table class="grid" cellspacing="0">
+  <tr><td><b>Name</b></td><td>{{ m.display_name }}</td></tr>
+  <tr><td><b>Member #</b></td><td>{{ m.member_id }}</td></tr>
+  <tr><td><b>SSN</b></td><td>{{ m.masked_ssn }}</td></tr>
+  <tr><td><b>Date of Birth</b></td><td>{{ m.dob }}</td></tr>
+  <tr><td><b>Address</b></td><td>{{ m.address }}</td></tr>
+</table>
+<br>
+<table class="grid" cellspacing="0">
+  <tr class="h"><td>Suffix</td><td>Description</td><td>Nickname</td><td>{{ L.balance_column }}</td></tr>
+  {% for a in m.accounts %}
+  <tr><td>{{ a.suffix }}</td><td>{{ a.type }}</td><td>{{ a.nickname }}</td><td align="right">{{ a.balance|money }}</td></tr>
+  {% endfor %}
+</table>
+<br>
+<a href="/members/{{ m.member_id }}/subaccounts/new">{{ L.open_subaccount_link }}</a> &nbsp;|&nbsp;
+<a href="/members/search">{{ L.nav_member_search }}</a>
+{% endblock %}

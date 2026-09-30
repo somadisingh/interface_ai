@@ -1,0 +1,12 @@
+{% extends "legacy.html" %}
+{% block section %}SIGN ON{% endblock %}
+{% block content %}
+<form method="post" action="/login" target="_top">
+<table cellpadding="3">
+  {% if message %}<tr><td colspan="2"><font color="red"><b>{{ message }}</b></font></td></tr>{% endif %}
+  <tr><td>User ID:</td><td><input type="text" name="uid" size="16"></td></tr>
+  <tr><td>Password:</td><td><input type="password" name="pwd" size="16"></td></tr>
+  <tr><td></td><td><input type="submit" value="Sign On"></td></tr>
+</table>
+</form>
+{% endblock %}

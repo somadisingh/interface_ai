@@ -1,0 +1,6 @@
+{% extends "legacy.html" %}
+{% block section %}{{ title }}{% endblock %}
+{% block content %}
+<font color="red"><b>{{ error }}</b></font><br><br>
+<a href="/members/search">Return to {{ L.nav_member_search }}</a>
+{% endblock %}

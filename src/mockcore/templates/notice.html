@@ -1,0 +1,13 @@
+{% extends "legacy.html" %}
+{% block section %}NOTICE{% endblock %}
+{% block content %}
+<table class="grid" cellspacing="0" width="480">
+<tr class="h"><td>SCHEDULED MAINTENANCE NOTICE</td></tr>
+<tr><td>Core processing will be unavailable Sunday 02:00 - 04:00 ET for scheduled maintenance.
+Transactions entered during this window will be queued.</td></tr>
+</table><br>
+<form method="post" action="/notice/ack">
+<input type="hidden" name="next" value="{{ next }}">
+<input type="submit" value="Acknowledge">
+</form>
+{% endblock %}

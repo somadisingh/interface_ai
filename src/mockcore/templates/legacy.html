@@ -1,0 +1,34 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<title>{{ L.institution }} - MockCore</title>
+<style>
+  body { font-family: Verdana, Arial, sans-serif; font-size: 11px; margin: 0; background: #e8e8e0; }
+  .hdr { background: {{ L.header_color }}; color: #fff; font-weight: bold; padding: 4px 8px; }
+  .ftr { color: #666; font-size: 9px; padding: 8px; border-top: 1px solid #aaa; margin-top: 16px; }
+  td { font-size: 11px; }
+  .grid td { border: 1px solid #999; padding: 2px 6px; background: #fff; }
+  .grid tr.h td { background: #c8c8b8; font-weight: bold; }
+  .btn { border: 2px outset #ccc; background: #ddd; padding: 1px 10px; cursor: pointer; }
+  .overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.45); }
+  .overlay .box { background: #ffffe0; border: 2px solid #000; width: 320px; margin: 80px auto; padding: 12px; }
+</style>
+<script>
+function go(url) { window.location.href = url; }
+</script>
+</head>
+<body>
+<div class="hdr">{{ L.institution }} &nbsp;|&nbsp; {% block section %}{% endblock %}</div>
+<table width="100%" cellpadding="6" cellspacing="0"><tr><td>
+{% block content %}{% endblock %}
+</td></tr></table>
+<div class="ftr">{{ product_version }} &nbsp; Copyright (c) Fictional Core Systems Inc. Authorized use only.</div>
+{% if show_modal %}
+<div class="overlay"><div class="box">
+  <b>SECURITY NOTICE</b><br><br>
+  Your password will expire in 5 days. Please change it from the Security menu.<br><br>
+  <span class="btn" onclick="var o=this.parentNode.parentNode; fetch('/modal/dismiss',{method:'POST'}).then(function(){o.parentNode.removeChild(o);});">OK</span>
+</div></div>
+{% endif %}
+</body>
+</html>

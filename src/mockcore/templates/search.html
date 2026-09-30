@@ -1,0 +1,23 @@
+{% extends "legacy.html" %}
+{% block section %}MEMBER INQUIRY{% endblock %}
+{% block content %}
+<form method="post" action="/members/search" name="f1">
+<table cellpadding="2">
+  <tr><td>{{ L.member_id_label }}</td><td><input type="text" name="mid" size="10" maxlength="10" value="{{ mid }}"></td></tr>
+  <tr><td colspan="2"><label>{{ L.last_name_label }} <input type="text" name="lname" size="20" value="{{ lname }}"></label></td></tr>
+  <tr><td></td><td><span class="btn" onclick="document.forms['f1'].submit()">{{ L.search_button }}</span>
+      &nbsp; <span class="btn" onclick="go('/members/search')">Clear</span></td></tr>
+</table>
+</form>
+{% if error %}<br><font color="red"><b>{{ error }}</b></font>{% endif %}
+{% if results %}
+<br>
+<table class="grid" cellspacing="0">
+  <tr class="h"><td>Member #</td><td>Name</td><td>Status</td></tr>
+  {% for r in results %}
+  <tr><td><a href="javascript:go('/members/{{ r.member_id }}')">{{ r.member_id }}</a></td>
+      <td>{{ r.display_name }}</td><td>{{ 'RESTRICTED' if r.restricted else 'ACTIVE' }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% endblock %}

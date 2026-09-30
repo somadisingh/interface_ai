@@ -1,0 +1,12 @@
+{% extends "legacy.html" %}
+{% block section %}OPEN SHARE ACCOUNT - COMPLETE{% endblock %}
+{% block content %}
+<font color="green"><b>SHARE ACCOUNT OPENED SUCCESSFULLY</b></font><br><br>
+<table class="grid" cellspacing="0">
+  <tr><td><b>Confirmation Number</b></td><td>{{ confirmation }}</td></tr>
+  <tr><td><b>New Suffix</b></td><td>{{ suffix }}</td></tr>
+  <tr><td><b>Account Type</b></td><td>{{ type_name }}</td></tr>
+  <tr><td><b>Opening Deposit</b></td><td>{{ deposit|money }}</td></tr>
+</table><br>
+<a href="/members/{{ m.member_id }}">Return to member</a>
+{% endblock %}

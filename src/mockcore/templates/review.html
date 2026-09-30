@@ -1,0 +1,19 @@
+{% extends "legacy.html" %}
+{% block section %}OPEN SHARE ACCOUNT - REVIEW{% endblock %}
+{% block content %}
+<b>Please review the details below. This transaction cannot be reversed once submitted.</b><br><br>
+{% if error %}<font color="red"><b>{{ error }}</b></font><br><br>{% endif %}
+<table class="grid" cellspacing="0">
+  <tr><td><b>Member</b></td><td>{{ m.member_id }} {{ m.display_name }}</td></tr>
+  <tr><td><b>Account Type</b></td><td>{{ p.type }} {{ type_name }}</td></tr>
+  <tr><td><b>Nickname</b></td><td>{{ p.nickname|upper }}</td></tr>
+  <tr><td><b>Opening Deposit</b></td><td>{{ p.deposit|money }}</td></tr>
+  <tr><td><b>Funded From</b></td><td>{{ funding.suffix }} {{ funding.type }}</td></tr>
+</table><br>
+<form method="post" action="/members/{{ m.member_id }}/subaccounts/confirm">
+<input type="hidden" name="txn" value="{{ token }}">
+{% if require_consent %}<input type="checkbox" name="consent" value="1"> Member consent obtained<br><br>{% endif %}
+<input type="submit" value="{{ L.confirm_button }}"> &nbsp;
+<a href="/members/{{ m.member_id }}/subaccounts/new">Back</a>
+</form>
+{% endblock %}
