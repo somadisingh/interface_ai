@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+
+# Secrets — never commit real keys or credentials
+.env
+.env.*
+!.env.example
+
+# Raw run output (curated copies live in /evidence)
+runs/
+*.trace.zip
+!evidence/**/*.trace.zip
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
