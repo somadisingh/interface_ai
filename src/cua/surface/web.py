@@ -34,6 +34,7 @@ from playwright.sync_api import (
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
+from cua.handoff.control import SessionControl
 from cua.schema import templates
 from cua.schema.conditions import (
     AllOf,
@@ -91,6 +92,8 @@ class WebSurface:
         self.action_timeout_ms = action_timeout_ms
         self.blocked: list[BlockedRequest] = []
         self._ref_frames: dict[str, Frame] = {}
+        self.control: SessionControl | None = None
+        """Control lease; when set, every action requires automation to hold it."""
 
     # ------------------------------------------------------------------ lifecycle
 
@@ -133,6 +136,23 @@ class WebSurface:
                 route.abort("blockedbyclient")
 
         self.page.context.route("**/*", handle)
+
+    def install_human_recorder(self, on_action: Callable[[dict[str, Any]], None]) -> None:
+        """Report clicks and changes made in any frame of the page to ``on_action``."""
+
+        def binding(source: dict[str, Any], payload: dict[str, Any]) -> None:
+            frame = source.get("frame")
+            payload["frame"] = self.frame_label(frame) if frame is not None else "?"
+            on_action(payload)
+
+        context = self.page.context
+        context.expose_binding("__cuaRecord", binding)
+        context.add_init_script(script=dom_scripts.HUMAN_RECORDER)
+        for frame in self._live_frames():  # frames already loaded
+            try:
+                frame.evaluate(dom_scripts.HUMAN_RECORDER)
+            except PlaywrightError:
+                continue
 
     def stop_trace(self, path: Path | None) -> Path | None:
         """Stop Playwright tracing; keep the trace only if a path is given."""
@@ -383,6 +403,8 @@ class WebSurface:
     # ------------------------------------------------------------------ actions
 
     def _act(self, fn: Callable[[], Any]) -> ActionResult:
+        if self.control is not None:
+            self.control.assert_automation()  # never act while a human holds the session
         try:
             fn()
             return ActionResult(True)
@@ -403,7 +425,13 @@ class WebSurface:
         return self._act(lambda: element.handle.click(timeout=self.action_timeout_ms))
 
     def fill(self, element: Resolved, value: str) -> ActionResult:
-        return self._act(lambda: element.handle.fill(value, timeout=self.action_timeout_ms))
+        def do() -> None:
+            element.handle.fill(value, timeout=self.action_timeout_ms)
+            # Commit the field (like a person tabbing out) so its change event fires now,
+            # while automation still holds the lease, not later during a human's turn.
+            element.handle.evaluate("el => el.blur()")
+
+        return self._act(do)
 
     def select(self, element: Resolved, option: str) -> ActionResult:
         def do() -> None:

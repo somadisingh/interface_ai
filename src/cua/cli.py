@@ -7,7 +7,7 @@ is a subcommand of one CLI. Subcommands are added as each component lands.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import typer
 
@@ -102,14 +102,24 @@ def _pairs(items: list[str], what: str) -> dict[str, str]:
     return out
 
 
-def _human_channel(kind: str) -> HumanChannel:
+def _human_channel(kind: str) -> HumanChannel | Literal["operator"]:
     from cua.handoff.channel import ScriptedChannel, TerminalChannel
 
+    if kind == "operator":
+        return "operator"  # local operator page + visible browser window
     if kind == "terminal":
         return TerminalChannel()
     if kind == "none":
         return ScriptedChannel()  # unattended: approvals denied, assists aborted
-    raise typer.BadParameter("--human must be 'terminal' or 'none'")
+    raise typer.BadParameter("--human must be 'operator', 'terminal' or 'none'")
+
+
+def _announce(url: str | None) -> None:
+    if url:
+        typer.echo(
+            f"operator page: {url}  (interventions appear there; the browser window "
+            "is the live session)"
+        )
 
 
 @app.command()
@@ -128,7 +138,10 @@ def discover(
     headed: bool = typer.Option(False, help="Show the browser window."),
     model: str | None = typer.Option(None, help="Model id (default: $CUA_MODEL or Sonnet)."),
     max_steps: int | None = typer.Option(None, help="Step budget (default: policy.yaml)."),
-    human: str = typer.Option("terminal", help="Human channel: terminal | none."),
+    human: str = typer.Option(
+        "operator", help="Human channel: operator (page + visible browser) | terminal | none."
+    ),
+    operator_port: int = typer.Option(8766, help="Port for the local operator page."),
     merge_into: Path | None = typer.Option(
         None, help="Existing capability YAML: merge this run's business outcome into it."
     ),
@@ -160,13 +173,16 @@ def discover(
     types = {k: ParamSpec(sensitivity="none" if k in public_param else "pii") for k in params}
     llm = AnthropicClient(model)
 
+    channel = _human_channel(human)
     with open_runtime(
         base_url,
-        human=_human_channel(human),
+        human=channel,
         product=product,
         mode="discovery",
-        headless=not headed,
+        headless=not (headed or channel == "operator"),
+        operator_port=operator_port,
     ) as rt:
+        _announce(rt.operator_url)
         limits = rt.policy.policy.limits
         agent = DiscoveryAgent(
             rt.surface,
@@ -222,7 +238,10 @@ def replay(
     base_url: str = typer.Option(DEFAULT_BASE_URL, help="Base URL of the app instance."),
     headed: bool = typer.Option(False, help="Show the browser window."),
     escalate: bool = typer.Option(False, help="Hand unrecoverable states to a human."),
-    human: str = typer.Option("none", help="Human channel: terminal | none."),
+    human: str = typer.Option(
+        "none", help="Human channel: operator (page + visible browser) | terminal | none."
+    ),
+    operator_port: int = typer.Option(8766, help="Port for the local operator page."),
 ) -> None:
     """Replay a capability deterministically (no model). Prints the RunResult as JSON.
 
@@ -241,13 +260,16 @@ def replay(
         else CapabilityRegistry("capabilities").resolve_ref(capability)
     )
     product = cap.app.product
+    channel = _human_channel(human)
     with open_runtime(
         base_url,
-        human=_human_channel(human),
+        human=channel,
         product=product,
-        headless=not headed,
+        headless=not (headed or channel == "operator"),
         escalate=escalate,
+        operator_port=operator_port,
     ) as rt:
+        _announce(rt.operator_url)
         result = rt.engine.run(cap, _pairs(input, "--input"))
         if result.status in ("failed", "escalated"):
             rt.keep_trace = True
@@ -307,6 +329,14 @@ def review(
 
     save_capability(Capability.model_validate(data), path)
     typer.echo(f"approved by {by}; saved {path}")
+
+
+@app.command()
+def report(run_dir: Path = typer.Argument(..., help="A run folder under runs/.")) -> None:
+    """(Re)generate the human-readable run_report.md from a run's event log."""
+    from cua.evidence.report import build_report
+
+    typer.echo(f"wrote {build_report(run_dir)}")
 
 
 @app.command()

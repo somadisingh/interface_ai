@@ -248,3 +248,34 @@ return n;
 )
 
 BODY_TEXT = "() => (document.body || document.documentElement).innerText || ''"
+
+# Installed in every frame (init script). Reports what a *person* does in the page while they
+# hold the control lease (the Python side ignores events while automation is in control).
+HUMAN_RECORDER = r"""
+(() => {
+  if (window.__cuaRecorderInstalled) return;
+  window.__cuaRecorderInstalled = true;
+  const clean = (t) => (t || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+  const describe = (el) => {
+    const row = el.closest ? el.closest('tr') : null;
+    return {
+      tag: el.tagName ? el.tagName.toLowerCase() : '?',
+      text: clean(el.innerText || (el.type === 'password' ? '' : el.value) || ''),
+      name: el.getAttribute ? el.getAttribute('name') : null,
+      input_type: el.getAttribute ? el.getAttribute('type') : null,
+      row: row ? clean(row.innerText) : null,
+    };
+  };
+  const send = (payload) => { if (window.__cuaRecord) window.__cuaRecord(payload); };
+  document.addEventListener('click', (e) => {
+    const el = (e.target.closest &&
+      e.target.closest('a, button, input, select, textarea, [onclick], td, span')) || e.target;
+    send(Object.assign({ action: 'click' }, describe(el)));
+  }, true);
+  document.addEventListener('change', (e) => {
+    const el = e.target;
+    const value = (el.type || '') === 'password' ? '********' : clean(el.value);
+    send(Object.assign({ action: 'change', value }, describe(el)));
+  }, true);
+})();
+"""

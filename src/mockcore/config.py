@@ -105,7 +105,7 @@ class Faults:
 class MockCoreConfig:
     variant: str = "a"
     faults: Faults = field(default_factory=Faults)
-    username: str = "operator"
+    username: str = "svc-cua"  # fake service account for a fake app
     password: str = "mockcore-demo"  # fake, local-only credential for a fake app
     idle_timeout_s: int = 15 * 60
 
@@ -123,6 +123,6 @@ class MockCoreConfig:
         return cls(
             variant=variant,
             faults=Faults.parse(os.environ.get("MOCKCORE_FAULTS")),
-            username=os.environ.get("MOCKCORE_USERNAME", "operator"),
+            username=os.environ.get("MOCKCORE_USERNAME", "svc-cua"),
             password=os.environ.get("MOCKCORE_PASSWORD") or "mockcore-demo",
         )

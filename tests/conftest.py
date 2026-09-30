@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 
 from mockcore import MockCoreConfig, create_app
 
-USERNAME = "operator"
+USERNAME = "svc-cua"
 PASSWORD = "mockcore-demo"
 
 

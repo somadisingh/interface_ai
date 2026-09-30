@@ -34,8 +34,9 @@ This project is being built in vertical slices. Checked items are implemented an
 - [x] LLM discovery loop and recorder (Claude Sonnet 5.5 by default; scripted stand-in for offline tests)
 - [x] Compiler (trace → artifact), including merging business outcomes learned from negative discovery runs
 - [x] Deterministic replay engine with error taxonomy, recovery, drift detection and approvals
-- [ ] Human-in-the-loop handoff: the approve/assist seam is built and used by discovery and replay; the control lease and operator surface are next
-- [ ] Evidence (`/evidence/`) and design write-up (`REPORT.md`)
+- [x] Human-in-the-loop handoff: control lease, intervention queue, local operator page, capture of the person's actions
+- [x] Evidence per run: redacted event log, masked screenshots, Playwright trace on failure, generated `run_report.md`
+- [ ] Curated `/evidence/` (real discovery run + replay runs) and design write-up (`REPORT.md`)
 
 ## Demo path
 
@@ -127,7 +128,7 @@ the legacy surfaces it represents:
 All data is fake (fictional names, never-issued 900-series SSNs).
 
 ```bash
-uv run cua mockcore                      # http://127.0.0.1:8765  (operator / mockcore-demo)
+uv run cua mockcore                      # http://127.0.0.1:8765  (svc-cua / mockcore-demo)
 uv run cua mockcore --variant b          # second "tenant": same product, different labels/branding
 uv run cua mockcore --faults maintenance,modal,slow=2000
 ```
@@ -188,6 +189,30 @@ converted, and duplicate keys are rejected.
   replaced with `[SECRET]` everywhere. Declared PII values are masked (`***45`), and SSNs,
   Luhn-valid card numbers and e-mail addresses are caught by pattern. Screenshots have
   sensitive elements and matching text painted over before the image is written.
+
+## Human handoff
+
+Run with `--human operator` (the default for `discover`, and optional for `replay` together with
+`--escalate`). A local operator page opens at `http://127.0.0.1:8766`, and the browser runs
+visibly. When automation needs a person (an irreversible step to approve, an unrecognised
+state, or the agent is stuck), it pauses and a request appears on the page with the
+screenshot, the step and the reason.
+
+- **Approve / Reject** an irreversible step.
+- **Take control:** the session's control lease moves to you. Automation is now blocked from
+  acting (enforced at the browser layer), and you operate **the same browser window**. Your
+  clicks and changes are recorded, with values redacted.
+- **Hand back:** choose *resume*, *skip step* or *abort*. Automation re-checks the page and
+  carries on from the current step.
+
+Every control transfer (automation → paused → human → automation) is logged with who made it
+and why, and appears in the run report.
+
+```bash
+uv run cua mockcore --faults modal          # an overlay the app profile could fail to recognise
+uv run cua replay mockcore/member.read_savings_balance --input member_id=12345 \
+  --human operator --escalate
+```
 
 ## Repository layout
 
