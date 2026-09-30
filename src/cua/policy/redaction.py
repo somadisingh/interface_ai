@@ -56,6 +56,14 @@ class Redactor:
         self._secrets: set[str] = set()
         self._pii: set[str] = set()
 
+    def model_view(self) -> Redactor:
+        """A redactor for what the *model* sees: shares this redactor's secrets (live, so
+        secrets resolved later are covered too) and the regulated-data patterns, but not
+        the run's declared PII values — the agent must see the parameters it was given."""
+        view = Redactor()
+        view._secrets = self._secrets
+        return view
+
     def add_secret(self, value: str) -> None:
         if value:
             self._secrets.add(value)

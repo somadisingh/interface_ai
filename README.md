@@ -31,14 +31,60 @@ This project is being built in vertical slices. Checked items are implemented an
 - [x] Capability artifact schema, shared app profile, and replay result contract
 - [x] Surface abstraction and Playwright web implementation (multi-frame, verified locator generation, drift detection, masked screenshots)
 - [x] Guardrails: browser-enforced allowlist, risk classification with tiered approval, redaction
-- [ ] LLM discovery loop and recorder
-- [ ] Compiler (trace → artifact)
-- [ ] Deterministic replay engine with error taxonomy and recovery
-- [ ] Human-in-the-loop handoff (control lease, intervention queue, operator page)
+- [x] LLM discovery loop and recorder (Claude Sonnet 5.5 by default; scripted stand-in for offline tests)
+- [x] Compiler (trace → artifact), including merging business outcomes learned from negative discovery runs
+- [x] Deterministic replay engine with error taxonomy, recovery, drift detection and approvals
+- [ ] Human-in-the-loop handoff: the approve/assist seam is built and used by discovery and replay; the control lease and operator surface are next
 - [ ] Evidence (`/evidence/`) and design write-up (`REPORT.md`)
 
-The demo commands (discover a goal, then replay the resulting artifact) will be added here
-as those components land.
+## Demo path
+
+Terminal 1: start the target app.
+
+```bash
+uv run cua mockcore
+```
+
+Terminal 2: discover a capability with the LLM, review it, then replay it without the LLM.
+
+```bash
+# 1. Discovery (needs ANTHROPIC_API_KEY in .env). Signs on with the service account from .env
+#    first; the model never sees credentials. Writes capabilities/mockcore/<id>/<version>.yaml.
+uv run cua discover \
+  --capability member.read_savings_balance \
+  --goal "Look up member 12345 and read their current savings balance" \
+  --param member_id=12345 \
+  --output "savings_balance:money:Current balance of the member's Share Savings account"
+
+# 2. Teach it a business outcome with a negative discovery run (bad input).
+uv run cua discover \
+  --capability member.read_savings_balance \
+  --goal "Look up member 99999 and read their current savings balance" \
+  --param member_id=99999 --output savings_balance:money \
+  --merge-into capabilities/mockcore/member.read_savings_balance/1.0.0.yaml
+
+# 3. Review (and optionally approve) the capability.
+uv run cua review capabilities/mockcore/member.read_savings_balance/1.1.0.yaml
+
+# 4. Deterministic replay: no model in the loop. Prints the RunResult JSON.
+uv run cua replay mockcore/member.read_savings_balance --input member_id=34567   # success
+uv run cua replay mockcore/member.read_savings_balance --input member_id=99999   # business outcome
+uv run cua replay mockcore/member.read_savings_balance --input member_id=55555   # PERMISSION_DENIED
+```
+
+Replay exit codes: `0` success, `3` business outcome, `2` escalated, `1` failed. Each run
+writes its evidence to `runs/<run-id>/`:
+- `events.jsonl`: the redacted event log
+- `screenshots/`: masked screenshots
+- `result.json` for replays, or `trace.json` for discovery runs
+- `trace.zip`: the Playwright trace, kept when a run fails
+
+To exercise runtime conditions, restart MockCore with faults, e.g.
+`uv run cua mockcore --faults maintenance,modal`.
+
+**Without live services:** the whole test suite runs offline. The discovery loop is tested
+with a scripted stand-in for the model (`tests/agent/test_discovery.py`), driving the real
+browser against a local MockCore.
 
 ## Setup
 

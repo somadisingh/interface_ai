@@ -134,8 +134,12 @@ class WebSurface:
 
         self.page.context.route("**/*", handle)
 
-    def stop_trace(self, path: Path) -> Path | None:
+    def stop_trace(self, path: Path | None) -> Path | None:
+        """Stop Playwright tracing; keep the trace only if a path is given."""
         try:
+            if path is None:
+                self.page.context.tracing.stop()
+                return None
             self.page.context.tracing.stop(path=str(path))
             return path
         except PlaywrightError:

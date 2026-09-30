@@ -7,10 +7,14 @@ is a subcommand of one CLI. Subcommands are added as each component lands.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import typer
 
 from cua import __version__
+
+if TYPE_CHECKING:
+    from cua.handoff.channel import HumanChannel
 
 app = typer.Typer(
     name="cua",
@@ -83,6 +87,226 @@ def schema_export(
         target = out / f"{name}.schema.json"
         target.write_text(json.dumps(model.model_json_schema(), indent=2) + "\n")
         typer.echo(f"wrote {target}")
+
+
+DEFAULT_BASE_URL = "http://127.0.0.1:8765"
+
+
+def _pairs(items: list[str], what: str) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for item in items:
+        key, sep, value = item.partition("=")
+        if not sep or not key:
+            raise typer.BadParameter(f"{what} must look like name=value, got {item!r}")
+        out[key.strip()] = value
+    return out
+
+
+def _human_channel(kind: str) -> HumanChannel:
+    from cua.handoff.channel import ScriptedChannel, TerminalChannel
+
+    if kind == "terminal":
+        return TerminalChannel()
+    if kind == "none":
+        return ScriptedChannel()  # unattended: approvals denied, assists aborted
+    raise typer.BadParameter("--human must be 'terminal' or 'none'")
+
+
+@app.command()
+def discover(
+    goal: str = typer.Option(..., help="Goal in natural language."),
+    capability: str = typer.Option(..., help="Capability id, e.g. member.read_savings_balance"),
+    param: list[str] = typer.Option([], help="Goal parameter name=value (repeatable)."),
+    output: list[str] = typer.Option(
+        [], help="Output to extract, name:type[:description] (repeatable)."
+    ),
+    public_param: list[str] = typer.Option(
+        [], help="Parameter names that are NOT personal data (default: all are treated as PII)."
+    ),
+    product: str = typer.Option("mockcore", help="App product (selects apps/<product>/)."),
+    base_url: str = typer.Option(DEFAULT_BASE_URL, help="Base URL of the app instance."),
+    headed: bool = typer.Option(False, help="Show the browser window."),
+    model: str | None = typer.Option(None, help="Model id (default: $CUA_MODEL or Sonnet)."),
+    max_steps: int | None = typer.Option(None, help="Step budget (default: policy.yaml)."),
+    human: str = typer.Option("terminal", help="Human channel: terminal | none."),
+    merge_into: Path | None = typer.Option(
+        None, help="Existing capability YAML: merge this run's business outcome into it."
+    ),
+) -> None:
+    """Run an LLM-driven discovery on the live app and compile the result into a capability."""
+    from dotenv import load_dotenv
+
+    from cua.agent.discovery import DiscoveryAgent, DiscoverySpec
+    from cua.agent.llm import AnthropicClient
+    from cua.compiler.compile import compile_trace, merge_outcome, next_version
+    from cua.recorder.trace import ParamSpec
+    from cua.runtime import open_runtime
+    from cua.schema import load_capability, save_capability
+    from cua.schema.capability import OutputSpec
+
+    load_dotenv()
+    params = _pairs(param, "--param")
+    outputs: dict[str, OutputSpec] = {}
+    for item in output:
+        name, _, rest = item.partition(":")
+        otype, _, desc = rest.partition(":")
+        outputs[name] = OutputSpec.model_validate(
+            {
+                "type": otype or "string",
+                "description": desc or name.replace("_", " "),
+                "sensitivity": "pii",
+            }
+        )
+    types = {k: ParamSpec(sensitivity="none" if k in public_param else "pii") for k in params}
+    llm = AnthropicClient(model)
+
+    with open_runtime(
+        base_url,
+        human=_human_channel(human),
+        product=product,
+        mode="discovery",
+        headless=not headed,
+    ) as rt:
+        limits = rt.policy.policy.limits
+        agent = DiscoveryAgent(
+            rt.surface,
+            llm,
+            engine=rt.engine,
+            policy=rt.policy,
+            human=rt.human,
+            log=rt.log,
+            model_redactor=rt.redactor.model_view(),
+            max_steps=max_steps or limits.max_discovery_steps,
+            max_seconds=limits.max_run_seconds,
+            app_description=rt.profile.description,
+        )
+        trace = agent.run(
+            DiscoverySpec(
+                capability_id=capability,
+                product=product,
+                goal=goal,
+                params=params,
+                outputs=outputs,
+                requires=[rt.profile.session.sign_on_capability],
+                param_types=types,
+            )
+        )
+        if trace.status not in ("succeeded", "outcome"):
+            rt.keep_trace = True
+        run_dir, registry, profile = rt.log.run_dir, rt.registry, rt.profile
+
+    typer.echo(f"discovery {trace.status}: {trace.summary}")
+    typer.echo(f"  steps: {len(trace.steps)}  tokens: {trace.usage}  evidence: {run_dir}")
+    target = None
+    if merge_into is not None:
+        cap = merge_outcome(load_capability(merge_into), trace)
+        target = registry.root / product / cap.id / f"{cap.version}.yaml"
+    elif trace.status == "succeeded":
+        cap = compile_trace(
+            trace,
+            version=next_version(registry, product, capability),
+            product_versions=profile.product_versions,
+        )
+        target = registry.root / product / cap.id / f"{cap.version}.yaml"
+    if target is not None:
+        save_capability(cap, target)
+        save_capability(cap, run_dir / "capability.yaml")
+        typer.echo(f"  capability: {target}  (draft — review with `cua review {target}`)")
+    raise typer.Exit(code=0 if target is not None else 1)
+
+
+@app.command()
+def replay(
+    capability: str = typer.Argument(..., help="Capability YAML path, or product/id[@version]."),
+    input: list[str] = typer.Option([], "--input", help="Input name=value (repeatable)."),
+    base_url: str = typer.Option(DEFAULT_BASE_URL, help="Base URL of the app instance."),
+    headed: bool = typer.Option(False, help="Show the browser window."),
+    escalate: bool = typer.Option(False, help="Hand unrecoverable states to a human."),
+    human: str = typer.Option("none", help="Human channel: terminal | none."),
+) -> None:
+    """Replay a capability deterministically (no model). Prints the RunResult as JSON.
+
+    Exit codes: 0 success, 3 business outcome, 2 escalated, 1 failed."""
+    from dotenv import load_dotenv
+
+    from cua.replay.support import CapabilityRegistry
+    from cua.runtime import open_runtime
+    from cua.schema import load_capability
+
+    load_dotenv()
+    path = Path(capability)
+    cap = (
+        load_capability(path)
+        if path.exists()
+        else CapabilityRegistry("capabilities").resolve_ref(capability)
+    )
+    product = cap.app.product
+    with open_runtime(
+        base_url,
+        human=_human_channel(human),
+        product=product,
+        headless=not headed,
+        escalate=escalate,
+    ) as rt:
+        result = rt.engine.run(cap, _pairs(input, "--input"))
+        if result.status in ("failed", "escalated"):
+            rt.keep_trace = True
+    typer.echo(result.model_dump_json(indent=2, exclude_none=True))
+    codes = {"success": 0, "business_outcome": 3, "escalated": 2, "failed": 1}
+    raise typer.Exit(code=codes[result.status])
+
+
+@app.command()
+def review(
+    path: Path = typer.Argument(..., help="Capability YAML to review."),
+    approve: bool = typer.Option(False, help="Mark the capability approved."),
+    by: str | None = typer.Option(None, help="Reviewer name (required with --approve)."),
+    auto_approve: list[str] = typer.Option(
+        [], help="Irreversible step id allowed to run unattended once approved (repeatable)."
+    ),
+    notes: str | None = typer.Option(None, help="Review notes."),
+) -> None:
+    """Show a capability's contract and steps; optionally approve it."""
+    from datetime import UTC, datetime
+
+    from cua.schema import load_capability, save_capability
+
+    cap = load_capability(path)
+    typer.echo(f"{cap.ref}  [{cap.review.status}]  {cap.content_hash()[:19]}")
+    typer.echo(f"  {cap.summary}")
+    typer.echo(f"  requires: {', '.join(cap.requires) or '-'}")
+    typer.echo("  inputs:   " + (", ".join(f"{k}:{v.type}" for k, v in cap.inputs.items()) or "-"))
+    typer.echo("  outputs:  " + (", ".join(f"{k}:{v.type}" for k, v in cap.outputs.items()) or "-"))
+    typer.echo("  outcomes: " + (", ".join(cap.outcomes) or "-"))
+    for i, step in enumerate(cap.steps, 1):
+        target = getattr(step.action, "target", None)
+        strategies = ""
+        if target:
+            strategies = " > ".join(loc.strategy for loc in cap.targets[target].locators)
+        flag = "  [AUTO-APPROVED]" if step.auto_approve_on_replay else ""
+        typer.echo(
+            f"  {i:>2}. {step.id:<32} {step.action.type:<8} {step.risk:<16} {strategies}{flag}"
+        )
+    if not approve:
+        return
+    if not by:
+        raise typer.BadParameter("--by is required with --approve")
+    data = cap.model_dump(mode="json")
+    for step in data["steps"]:
+        if step["id"] in auto_approve:
+            if step["risk"] != "irreversible":
+                raise typer.BadParameter(f"step {step['id']!r} is not irreversible")
+            step["auto_approve_on_replay"] = True
+    data["review"] = {
+        "status": "approved",
+        "reviewed_by": by,
+        "reviewed_at": datetime.now(UTC).isoformat(),
+        "notes": notes,
+    }
+    from cua.schema import Capability
+
+    save_capability(Capability.model_validate(data), path)
+    typer.echo(f"approved by {by}; saved {path}")
 
 
 @app.command()

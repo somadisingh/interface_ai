@@ -167,3 +167,13 @@ def test_policy_is_enforced_by_the_browser(mockcore_url: str) -> None:
 
 def test_capability_refs_are_not_mistaken_for_email_addresses() -> None:
     assert Redactor().text("mockcore/session.sign_on@1.0.0") == "mockcore/session.sign_on@1.0.0"
+
+
+def test_model_view_shares_secrets_but_not_pii() -> None:
+    evidence = Redactor()
+    model = evidence.model_view()
+    evidence.add_pii("12345")
+    evidence.add_secret("pw-added-later")
+    assert model.text("member 12345") == "member 12345"
+    assert "pw-added-later" not in model.text("typed pw-added-later")
+    assert "900-00-1234" not in model.text("ssn 900-00-1234")

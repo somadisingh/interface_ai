@@ -60,7 +60,10 @@ from cua.surface.web import WebSurface
 MAX_RESTARTS = 2
 
 
-class _Stop(Exception):
+class RunStop(Exception):
+    """Ends a run with a final status (used internally; also raised by
+    ``ensure_requirements`` to callers such as discovery)."""
+
     def __init__(
         self,
         status: RunStatus,
@@ -80,6 +83,13 @@ class _Restart(Exception):
 
 class _SkipStep(Exception):
     pass
+
+
+class HandlerError(Exception):
+    def __init__(self, category: FailureCategory, message: str) -> None:
+        super().__init__(message)
+        self.category = category
+        self.message = message
 
 
 @dataclass
@@ -151,7 +161,7 @@ class ReplayEngine:
         error: RunError | None = None
         try:
             self._execute(state, inputs, top_level=True)
-        except _Stop as stop:
+        except RunStop as stop:
             status, outcome, error = stop.status, stop.outcome, stop.error
         result = RunResult(
             run_id=self.log.run_id,
@@ -188,7 +198,7 @@ class ReplayEngine:
         try:
             self._execute(state, inputs, top_level=False)
             result: tuple[RunStatus, OutcomeInfo | None, RunError | None] = ("success", None, None)
-        except _Stop as stop:
+        except RunStop as stop:
             result = (stop.status, stop.outcome, stop.error)
         self.log.emit(
             "subrun_finished",
@@ -200,14 +210,17 @@ class ReplayEngine:
 
     def ensure_session(self, cap: Capability) -> None:
         """Run the capabilities ``cap`` requires (once per engine/session)."""
-        for req in cap.requires:
+        self.ensure_requirements(cap.app.product, cap.requires)
+
+    def ensure_requirements(self, product: str, requires: list[str]) -> None:
+        for req in requires:
             if req in self._session_done:
                 continue
-            sub = self.registry.get(cap.app.product, req)
+            sub = self.registry.get(product, req)
             status, outcome, error = self.run_nested(sub, {}, ignore=frozenset({"session_expired"}))
             if status != "success":
                 detail = outcome.code if outcome else (error.message if error else status)
-                raise _Stop(
+                raise RunStop(
                     "failed",
                     error=RunError(
                         category="SESSION_UNRECOVERABLE",
@@ -222,7 +235,7 @@ class ReplayEngine:
         try:
             state.inputs = validate_inputs(state.cap.inputs, inputs)
         except InputError as exc:
-            raise _Stop(
+            raise RunStop(
                 "failed", error=RunError(category="INVALID_INPUT", message=str(exc))
             ) from exc
         self.ensure_session(state.cap)
@@ -239,7 +252,7 @@ class ReplayEngine:
                 self.log.emit("step_skipped", step=step.id, by="human")
             except _Restart:
                 if state.irreversible_done:
-                    raise _Stop(
+                    raise RunStop(
                         "failed",
                         error=RunError(
                             category="SESSION_UNRECOVERABLE",
@@ -250,7 +263,7 @@ class ReplayEngine:
                     ) from None
                 state.restarts += 1
                 if state.restarts > MAX_RESTARTS:
-                    raise _Stop(
+                    raise RunStop(
                         "failed",
                         error=RunError(
                             category="RECOVERY_EXHAUSTED",
@@ -266,7 +279,7 @@ class ReplayEngine:
 
         for cond in state.cap.success:
             if not self._check(cond, state):
-                raise _Stop(
+                raise RunStop(
                     "failed",
                     error=self._error(
                         state,
@@ -362,7 +375,7 @@ class ReplayEngine:
             reason=decision.reason,
         )
         if decision.verdict == "deny":
-            raise _Stop(
+            raise RunStop(
                 "failed", error=self._error(state, step, "POLICY_VIOLATION", decision.reason)
             )
         if decision.verdict == "require_approval":
@@ -391,7 +404,7 @@ class ReplayEngine:
                 note=response.note,
             )
             if not response.approved:
-                raise _Stop(
+                raise RunStop(
                     "escalated",
                     error=self._error(
                         state,
@@ -454,7 +467,7 @@ class ReplayEngine:
             if isinstance(action, Press):
                 return self.surface.press(action.key, resolved)
         except MissingSecretError as exc:
-            raise _Stop(
+            raise RunStop(
                 "failed", error=self._error(state, step, "CONFIGURATION_ERROR", str(exc))
             ) from exc
         raise TypeError(f"unsupported action {action!r}")  # pragma: no cover
@@ -470,7 +483,7 @@ class ReplayEngine:
         try:
             value = parse_value(text, action.parse, action.pattern)
         except ParseError as exc:
-            raise _Stop(
+            raise RunStop(
                 "failed",
                 error=self._error(
                     state,
@@ -490,12 +503,12 @@ class ReplayEngine:
         path = self._render(state, step, action.path)
         decision = self.policy.check_url(self.surface.base_url.rstrip("/") + "/" + path.lstrip("/"))
         if not decision.allowed:
-            raise _Stop(
+            raise RunStop(
                 "failed", error=self._error(state, step, "POLICY_VIOLATION", decision.reason)
             )
         result = self.surface.navigate(path)
         if not result.completed:
-            raise _Stop(
+            raise RunStop(
                 "failed",
                 error=self._error(state, step, "APP_ERROR", f"navigation failed: {result.detail}"),
             )
@@ -532,9 +545,9 @@ class ReplayEngine:
 
     # ================================================================== known states
 
-    def _detect(self, state: _Run) -> tuple[str, KnownState] | None:
+    def _detect(self, ignore: frozenset[str] = frozenset()) -> tuple[str, KnownState] | None:
         for name, known in self.profile.states.items():
-            if name in state.ignore_states:
+            if name in ignore:
                 continue
             if self.surface.check(known.detect, self.profile.targets, {}):
                 return name, known
@@ -543,13 +556,13 @@ class ReplayEngine:
     def _handle_known_state(self, state: _Run, step: Step) -> bool:
         """Returns True if a recoverable state was handled (caller resumes). Raises for
         business outcomes, known failures and restarts. False if nothing is recognised."""
-        found = self._detect(state)
+        found = self._detect(state.ignore_states)
         if found is None:
             return False
         name, known = found
         if known.kind == "business_outcome":
             assert known.outcome is not None
-            raise _Stop(
+            raise RunStop(
                 "business_outcome",
                 outcome=OutcomeInfo(
                     code=known.outcome,
@@ -561,7 +574,7 @@ class ReplayEngine:
             )
         if known.kind == "failure":
             assert known.failure_category is not None
-            raise _Stop(
+            raise RunStop(
                 "failed",
                 error=self._error(
                     state,
@@ -576,7 +589,7 @@ class ReplayEngine:
         total = sum(state.step_recoveries.values())
         policy = state.cap.recovery
         if count > policy.max_recoveries_per_step or total > policy.max_recoveries_total:
-            raise _Stop(
+            raise RunStop(
                 "failed",
                 error=self._error(
                     state,
@@ -587,39 +600,11 @@ class ReplayEngine:
             )
         handler = known.handler
         assert handler is not None
-        done: list[str] = []
-        for action in handler.actions:
-            target_name = getattr(action, "target", None)
-            target = self.profile.targets[target_name] if target_name else None
-            element = self._resolve_quick(target) if target else None
-            if target is not None and element is None:
-                raise _Stop(
-                    "failed",
-                    error=self._error(
-                        state,
-                        step,
-                        "UNKNOWN_STATE",
-                        f"recognised {name!r} but could not find {target_name!r} to handle it",
-                    ),
-                )
-            if isinstance(action, Click) and element is not None:
-                self.surface.click(element)
-            done.append(f"{action.type} {target_name}")
-        if handler.run_capability:
-            sub = self.registry.get(state.cap.app.product, handler.run_capability)
-            status, outcome, error = self.run_nested(sub, {}, ignore=frozenset({name}))
-            if status != "success":
-                raise _Stop(
-                    "failed",
-                    error=self._error(
-                        state,
-                        step,
-                        "SESSION_UNRECOVERABLE",
-                        f"{handler.run_capability} failed while recovering from {name!r}: "
-                        f"{outcome.code if outcome else error.message if error else status}",
-                    ),
-                )
-            done.append(f"run {handler.run_capability}")
+        try:
+            done = self._run_handler(name, known, state.cap.app.product)
+        except HandlerError as exc:
+            error = self._error(state, step, exc.category, exc.message)
+            raise RunStop("failed", error=error) from exc
         record = RecoveryRecord(
             step_id=step.id,
             state=name,
@@ -632,6 +617,57 @@ class ReplayEngine:
         if handler.then == "restart_capability":
             raise _Restart
         return True
+
+    def _run_handler(self, name: str, known: KnownState, product: str) -> list[str]:
+        handler = known.handler
+        assert handler is not None
+        done: list[str] = []
+        for action in handler.actions:
+            target_name = getattr(action, "target", None)
+            target = self.profile.targets[target_name] if target_name else None
+            element = self._resolve_quick(target) if target else None
+            if target is not None and element is None:
+                raise HandlerError(
+                    "UNKNOWN_STATE",
+                    f"recognised {name!r} but could not find {target_name!r} to handle it",
+                )
+            if isinstance(action, Click) and element is not None:
+                self.surface.click(element)
+            done.append(f"{action.type} {target_name}")
+        if handler.run_capability:
+            sub = self.registry.get(product, handler.run_capability)
+            status, outcome, error = self.run_nested(sub, {}, ignore=frozenset({name}))
+            if status != "success":
+                detail = outcome.code if outcome else error.message if error else status
+                raise HandlerError(
+                    "SESSION_UNRECOVERABLE",
+                    f"{handler.run_capability} failed while recovering from {name!r}: {detail}",
+                )
+            done.append(f"run {handler.run_capability}")
+        return done
+
+    def recover_interruption(self, product: str) -> tuple[str, str] | None:
+        """For discovery: if a *recoverable* known state is on screen, handle it exactly as
+        replay would, so interruptions never become part of a recorded flow.
+
+        Returns ``(state, then)`` when something was handled, else ``None``. Business
+        outcomes and failures are left on screen for the agent to see."""
+        found = self._detect()
+        if found is None:
+            return None
+        name, known = found
+        if known.kind not in ("interstitial", "session_expired") or known.handler is None:
+            return None
+        done = self._run_handler(name, known, product)
+        self.log.emit(
+            "recovery",
+            step_id="(discovery)",
+            state=name,
+            action=f"{', '.join(done)}; then {known.handler.then}",
+            attempt=1,
+        )
+        self.surface.settle()
+        return name, known.handler.then
 
     def _resolve_quick(self, target: TargetSpec, timeout_ms: int = 3000) -> Resolved | None:
         deadline = time.monotonic() + timeout_ms / 1000
@@ -652,7 +688,7 @@ class ReplayEngine:
             ):
                 return
             self.surface.wait(self.poll_ms)
-        raise _Stop(
+        raise RunStop(
             "failed",
             error=RunError(
                 category="UNKNOWN_STATE",
@@ -666,7 +702,7 @@ class ReplayEngine:
 
     def _raise_outcome(self, state: _Run, step: Step, code: str) -> None:
         spec = state.cap.outcomes[code]
-        raise _Stop(
+        raise RunStop(
             "business_outcome",
             outcome=OutcomeInfo(
                 code=code,
@@ -734,7 +770,7 @@ class ReplayEngine:
         Returns only if the human resolved it with 'resume'."""
         error = self._error(state, step, category, message, expected=expected, observed=observed)
         if not self.escalate:
-            raise _Stop("failed", error=error)
+            raise RunStop("failed", error=error)
         request = AssistRequest(
             id=new_request_id("hlp"),
             run_id=self.log.run_id,
@@ -757,7 +793,7 @@ class ReplayEngine:
             human_actions=response.human_actions,
         )
         if response.resolution == "abort":
-            raise _Stop(
+            raise RunStop(
                 "escalated",
                 error=error.model_copy(update={"message": f"{error.message} (operator aborted)"}),
             )
