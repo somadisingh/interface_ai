@@ -1,42 +1,99 @@
 # cua — Computer-Use Automation System
 
-An LLM discovers how to complete a goal in a UI-only (no API) application. The run is compiled
-into a typed, versioned **capability artifact**, and that artifact is then **replayed
-deterministically** with no model in the loop. When the system can't proceed safely, it
-escalates to a human, who takes over the same live session and hands control back.
+A backend integration layer that lets AI agents operate **legacy back-office applications
+that have no API**, the long tail of bank and credit-union software where the only way in is
+the UI a human operator uses.
 
-> Work in progress. Setup, the demo path and the design write-up (`REPORT.md`) will be added
-> as the components land.
+> **The model discovers. The artifact becomes a reusable capability. Deterministic replay is
+> how the AI agent invokes it in production.**
 
-## Development setup
+1. **Discover:** given a goal ("look up member 12345 and read their savings balance") and a
+   target app, an LLM drives the live UI in an observe → decide → act loop until the goal is met.
+2. **Record:** the successful run is compiled into a typed, versioned **capability
+   artifact**: steps, robust element targeting, typed inputs and outputs, and checkpoints.
+   It is decoupled from the model transcript.
+3. **Replay:** the artifact is re-run **without the LLM**, using the caller's input parameters.
+   Each result is classified as *success*, a *business outcome* (e.g. member not found),
+   *recoverable* (handled and continued), or a *hard failure* (with step, expected vs. observed,
+   and evidence).
+4. **Escalate:** when the system can't proceed safely (stuck, unknown state, or an
+   irreversible step), it pauses, raises an intervention request, and lets a human take over
+   **the same live session**, then hands control back.
+5. **Guardrails throughout:** an explicit allowlist, conservative handling of irreversible
+   actions, and redaction so that no secrets or raw PII reach artifacts or logs.
+
+## Status
+
+This project is being built in vertical slices. Checked items are implemented and tested.
+
+- [x] Project scaffold, CLI, lint/type-check/test tooling, CI
+- [x] **MockCore**, a hostile legacy target app with injectable runtime faults and a second-tenant variant
+- [ ] Capability artifact schema and replay result contract
+- [ ] Surface abstraction and Playwright web implementation
+- [ ] Guardrails: allowlist, risk classification, redaction
+- [ ] LLM discovery loop and recorder
+- [ ] Compiler (trace → artifact)
+- [ ] Deterministic replay engine with error taxonomy and recovery
+- [ ] Human-in-the-loop handoff (control lease, intervention queue, operator page)
+- [ ] Evidence (`/evidence/`) and design write-up (`REPORT.md`)
+
+The demo commands (discover a goal, then replay the resulting artifact) will be added here
+as those components land.
+
+## Setup
 
 Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/).
 
 ```bash
-uv sync --all-groups
-uv run playwright install chromium
-cp .env.example .env        # fill in values; .env is git-ignored
-uv run pytest
-uv run cua --help
+git clone https://github.com/somadisingh/interface_ai.git
+cd interface_ai
+uv sync --all-groups                 # install dependencies (pinned in uv.lock)
+uv run playwright install chromium   # browser used by discovery, replay and tests
+cp .env.example .env                 # fill in values; .env is git-ignored
+```
+
+| Variable | Used for |
+|---|---|
+| `ANTHROPIC_API_KEY` | Discovery runs only. Replay never calls the model. |
+| `CUA_MODEL` | Model used for discovery. |
+| `MOCKCORE_USERNAME` / `MOCKCORE_PASSWORD` | Sign-on for the local MockCore app (fake credentials). |
+
+Run the checks:
+
+```bash
+uv run pytest          # tests, including headless-browser runs against MockCore
+uv run ruff check .    # lint
+uv run mypy            # type-check
+uv run cua --help      # CLI
 ```
 
 ## Target app: MockCore
 
-MockCore is a deliberately hostile, fictional "legacy core banking" web app used as the
-automation target. It has a frameset UI, table layouts, no element ids or test ids, labels
-not tied to their inputs, `<span onclick>` buttons and `javascript:` links. All of its data
-is fake.
+The brief deliberately provides no access to a real bank system. MockCore is a **fictional**
+credit-union back office built as a stand-in for one. It is intentionally hostile, like
+the legacy surfaces it represents:
+
+- server-rendered HTML 4 in a **frameset** (navigation frame + main frame)
+- **nested layout tables**, **no element ids or test ids**
+- labels that are **not associated with their inputs**
+- `<span onclick>` "buttons" (not exposed as buttons in the accessibility tree) and `javascript:` links
+
+All data is fake (fictional names, never-issued 900-series SSNs).
 
 ```bash
-uv run cua mockcore                      # http://127.0.0.1:8765  (user: operator / mockcore-demo)
+uv run cua mockcore                      # http://127.0.0.1:8765  (operator / mockcore-demo)
 uv run cua mockcore --variant b          # second "tenant": same product, different labels/branding
 uv run cua mockcore --faults maintenance,modal,slow=2000
 ```
 
-Flows: sign on → member search → member detail (balances) → open sub-account → review →
-confirm (irreversible, single-use transaction token).
+**Flows:** sign on → member search → member detail (balances) → open sub-account → review →
+confirm. Confirm is irreversible and uses a single-use transaction token.
 
-Injectable runtime conditions (`--faults`, or at runtime via `POST /__admin/faults {"spec": ...}`):
+**Business outcomes** come from the data itself: member `99999` doesn't exist, member
+`55555` is restricted (access denied), and malformed ids or amounts produce validation errors.
+
+**Injectable runtime conditions** (`--faults`, or at runtime via
+`POST /__admin/faults {"spec": "..."}`):
 
 | Fault | Effect |
 |---|---|
@@ -47,5 +104,31 @@ Injectable runtime conditions (`--faults`, or at runtime via `POST /__admin/faul
 | `error500=/prefix` | Application error page (HTTP 500) for matching paths |
 | `permission_denied` | Member detail returns ACCESS DENIED |
 
-Business outcomes come from the data itself: member `99999` doesn't exist, member `55555`
-is restricted, and malformed ids or amounts trigger validation errors.
+The `/__admin/*` endpoints are test hooks, not part of the app surface. The automation's
+allowlist never permits them.
+
+## Repository layout
+
+```
+src/cua/            the automation system
+  schema/           typed models: capability artifact, run result, events, policy
+  surface/          observe / act / resolve abstraction + Playwright web implementation
+  agent/            LLM discovery loop
+  recorder/         raw trace capture during discovery
+  compiler/         trace → capability artifact
+  replay/           deterministic replay, locator resolution, state classification, recovery
+  policy/           allowlist, risk classification, redaction
+  handoff/          control lease, intervention queue, operator surface
+  evidence/         structured logs, screenshots, traces, run reports
+  cli.py            single CLI entry point (`cua ...`)
+src/mockcore/       the fictional legacy target app
+tests/              unit, HTTP-level and browser tests
+```
+
+## Deliverables (per the brief)
+
+| Path | Contents |
+|---|---|
+| `/README.md` | This file: setup, configuration and the demo path |
+| `/REPORT.md` | Design write-up: Architecture · Artifact schema · Determinism & error handling · Heterogeneity & multi-tenant · Escalation & handoff · Safety · Cuts |
+| `/evidence/` | Example capability artifact, plus logs from a real discovery run and from replay runs (including error cases) |
