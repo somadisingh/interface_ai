@@ -48,13 +48,14 @@ class AnchorLocator(Model):
     """A control positioned relative to visible anchor text, for when the label is only
     visually adjacent and not programmatically associated (common in legacy UIs).
 
-    ``same_row`` means the innermost table row (or row-like container) that contains the
-    anchor text. ``role`` narrows the control type inside that row, e.g. ``textbox``.
+    ``same_row`` means the innermost table row that contains a cell whose text is exactly
+    ``anchor_text``. ``role`` narrows the control type inside that row, e.g. ``textbox``.
+    (Other spatial relations are deliberately not modelled until a target needs them.)
     """
 
     strategy: Literal["anchor"] = "anchor"
     anchor_text: str
-    relation: Literal["same_row", "right_of", "below"] = "same_row"
+    relation: Literal["same_row"] = "same_row"
     role: str | None = None
 
 

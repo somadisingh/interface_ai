@@ -60,7 +60,7 @@
     },
     "AnchorLocator": {
       "additionalProperties": false,
-      "description": "A control positioned relative to visible anchor text, for when the label is only\nvisually adjacent and not programmatically associated (common in legacy UIs).\n\n``same_row`` means the innermost table row (or row-like container) that contains the\nanchor text. ``role`` narrows the control type inside that row, e.g. ``textbox``.",
+      "description": "A control positioned relative to visible anchor text, for when the label is only\nvisually adjacent and not programmatically associated (common in legacy UIs).\n\n``same_row`` means the innermost table row that contains a cell whose text is exactly\n``anchor_text``. ``role`` narrows the control type inside that row, e.g. ``textbox``.\n(Other spatial relations are deliberately not modelled until a target needs them.)",
       "properties": {
         "strategy": {
           "const": "anchor",
@@ -73,12 +73,8 @@
           "type": "string"
         },
         "relation": {
+          "const": "same_row",
           "default": "same_row",
-          "enum": [
-            "same_row",
-            "right_of",
-            "below"
-          ],
           "title": "Relation",
           "type": "string"
         },
