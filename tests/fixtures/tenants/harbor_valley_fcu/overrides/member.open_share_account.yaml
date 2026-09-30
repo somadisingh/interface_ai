@@ -1,0 +1,31 @@
+schema_version: "1.0"
+tenant: harbor_valley_fcu
+capability: member.open_share_account
+applies_to: ">=1.0.0,<2.0.0"
+reason: >-
+  Harbor Valley renames the menu, labels and buttons, and requires staff to record that the
+  member consented before the account opening is submitted.
+targets:
+  nav_member_search:
+    locators: [{strategy: role, role: link, name: Find Member}]
+  member_id_field:
+    locators: [{strategy: anchor, anchor_text: "Account Number:", role: textbox}]
+  search_button:
+    locators: [{strategy: text, text: Find}]
+  open_subaccount_link:
+    locators: [{strategy: role, role: link, name: Add Share Account}]
+  continue_button:
+    locators: [{strategy: text, text: Next}]
+  confirm_button:
+    locators: [{strategy: role, role: button, name: Submit Account Opening}]
+add_targets:
+  consent_checkbox:
+    description: Member consent checkbox on the review page
+    frame: [{name: main}]
+    locators: [{strategy: attribute, tag: input, attribute: name, value: consent}]
+insert_steps:
+  - after: continue_to_review
+    steps:
+      - id: record_consent
+        intent: Record that the member consented
+        action: {type: check, target: consent_checkbox}

@@ -1,0 +1,8 @@
+# Second tenant on the same vendor product (start it with: uv run cua mockcore --variant b --port 8767).
+# Capability overlays for this tenant live in overrides/<capability-id>.yaml.
+schema_version: "1.0"
+tenant: harbor_valley_fcu
+name: Harbor Valley Federal Credit Union
+product: mockcore
+base_url: http://127.0.0.1:8767
+product_version: 4.3.0

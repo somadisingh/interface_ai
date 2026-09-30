@@ -21,6 +21,7 @@ from cua.policy import Policy, PolicyEngine, Redactor, SecretStore
 from cua.replay.engine import ReplayEngine, new_run_id
 from cua.replay.support import CapabilityRegistry
 from cua.schema import AppProfile, load_app_profile
+from cua.schema.tenancy import Tenant, apply_profile_overrides
 from cua.surface.web import WebSurface
 
 
@@ -55,12 +56,20 @@ def open_runtime(
     secrets_source: Mapping[str, str] | None = None,
     operator_port: int = 8766,
     simulate_operator: Callable[[WebSurface], None] | None = None,
+    tenant: str | None = None,
 ) -> Iterator[Runtime]:
     run_id = run_id or new_run_id("disc" if mode == "discovery" else "run")
     redactor = Redactor()
     log = EventLog(runs_dir / run_id, run_id, redactor)
     policy = PolicyEngine(Policy.load(root / "policy.yaml"))
     profile = load_app_profile(root / "apps" / product / "profile.yaml")
+    tenant_cfg = Tenant.load(root, tenant) if tenant else None
+    if tenant_cfg is not None:
+        if tenant_cfg.config.product != product:
+            raise ValueError(
+                f"tenant {tenant!r} runs {tenant_cfg.config.product!r}, not {product!r}"
+            )
+        profile = apply_profile_overrides(profile, tenant_cfg.config.profile_overrides)
     registry = CapabilityRegistry(root / "capabilities")
 
     def on_transfer(t: Transition) -> None:
@@ -102,6 +111,7 @@ def open_runtime(
             secrets=SecretStore(redactor, secrets_source),
             escalate=escalate,
             mode="discovery" if mode == "discovery" else "replay",
+            tenant=tenant_cfg,
         )
         runtime = Runtime(
             surface,

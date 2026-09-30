@@ -1,0 +1,7 @@
+# Base tenant: runs MockCore as recorded (no overrides needed).
+schema_version: "1.0"
+tenant: first_example_cu
+name: First Example Credit Union
+product: mockcore
+base_url: http://127.0.0.1:8765
+product_version: 4.2.1

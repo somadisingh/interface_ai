@@ -1048,6 +1048,18 @@
       "title": "Fingerprint",
       "type": "array"
     },
+    "version_pattern": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Version Pattern"
+    },
     "session": {
       "$ref": "#/$defs/SessionConfig"
     },

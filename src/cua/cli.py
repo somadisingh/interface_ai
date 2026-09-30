@@ -50,7 +50,17 @@ def validate(
     for path in paths:
         try:
             data = load_yaml(path.read_text(encoding="utf-8"))
-            if isinstance(data, dict) and "states" in data and "session" in data:
+            if isinstance(data, dict) and "tenant" in data and "capability" in data:
+                from cua.schema.tenancy import CapabilityOverlay
+
+                overlay = CapabilityOverlay.model_validate(data)
+                typer.echo(f"OK   {path}  overlay for {overlay.capability} ({overlay.tenant})")
+            elif isinstance(data, dict) and "tenant" in data and "base_url" in data:
+                from cua.schema.tenancy import TenantConfig
+
+                cfg = TenantConfig.model_validate(data)
+                typer.echo(f"OK   {path}  tenant {cfg.tenant} ({cfg.name})")
+            elif isinstance(data, dict) and "states" in data and "session" in data:
                 profile = load_app_profile(path)
                 typer.echo(
                     f"OK   {path}  app profile '{profile.product}' ({len(profile.states)} states)"
@@ -235,7 +245,12 @@ def discover(
 def replay(
     capability: str = typer.Argument(..., help="Capability YAML path, or product/id[@version]."),
     input: list[str] = typer.Option([], "--input", help="Input name=value (repeatable)."),
-    base_url: str = typer.Option(DEFAULT_BASE_URL, help="Base URL of the app instance."),
+    tenant: str | None = typer.Option(
+        None, help="Tenant id (tenants/<id>/): its instance URL and capability overlays."
+    ),
+    base_url: str | None = typer.Option(
+        None, help=f"Base URL of the app instance (default: tenant's, else {DEFAULT_BASE_URL})."
+    ),
     headed: bool = typer.Option(False, help="Show the browser window."),
     escalate: bool = typer.Option(False, help="Hand unrecoverable states to a human."),
     human: str = typer.Option(
@@ -260,11 +275,16 @@ def replay(
         else CapabilityRegistry("capabilities").resolve_ref(capability)
     )
     product = cap.app.product
+    if base_url is None:
+        from cua.schema.tenancy import Tenant
+
+        base_url = Tenant.load(Path("."), tenant).config.base_url if tenant else DEFAULT_BASE_URL
     channel = _human_channel(human)
     with open_runtime(
         base_url,
         human=channel,
         product=product,
+        tenant=tenant,
         headless=not (headed or channel == "operator"),
         escalate=escalate,
         operator_port=operator_port,

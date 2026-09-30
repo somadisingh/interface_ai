@@ -104,6 +104,9 @@ class AppProfile(Model):
     description: str
     fingerprint: list[Condition] = Field(default_factory=list)
     """Conditions that confirm we're looking at this product (checked before replay)."""
+    version_pattern: str | None = None
+    """Regex whose first group reads the running product version off the page. Replay
+    refuses to run a capability outside its ``app.product_versions`` range."""
     session: SessionConfig
     targets: dict[Identifier, TargetSpec] = Field(default_factory=dict)
     states: dict[Identifier, KnownState] = Field(default_factory=dict)

@@ -19,6 +19,7 @@ if escalation is enabled, a request for a human to take over the live session).
 
 from __future__ import annotations
 
+import re
 import secrets
 import time
 from collections.abc import Mapping
@@ -54,6 +55,7 @@ from cua.schema.result import (
     RunError,
     RunStatus,
 )
+from cua.schema.tenancy import Tenant, apply_overlay, version_in_range
 from cua.surface.base import ActionResult, Resolved
 from cua.surface.web import WebSurface
 
@@ -125,8 +127,11 @@ class ReplayEngine:
         escalate: bool = False,
         poll_ms: int = 150,
         mode: Literal["replay", "discovery"] = "replay",
+        tenant: Tenant | None = None,
     ) -> None:
         self.surface = surface
+        self.tenant = tenant
+        self.app_version: str | None = None
         self.profile = profile
         self.policy = policy
         self.registry = registry
@@ -144,6 +149,7 @@ class ReplayEngine:
     def run(self, cap: Capability, inputs: Mapping[str, str]) -> RunResult:
         """Top-level invocation: returns the caller-facing result contract."""
         started = utcnow()
+        cap = self._effective(cap)
         state = _Run(cap)
         for name, spec in cap.inputs.items():
             if spec.sensitivity == "pii" and inputs.get(name):
@@ -167,6 +173,8 @@ class ReplayEngine:
             run_id=self.log.run_id,
             capability=cap.ref,
             content_hash=cap.content_hash(),
+            tenant=self.tenant.config.tenant if self.tenant else None,
+            app_version=self.app_version,
             status=status,
             outputs=state.outputs if status == "success" else {},
             outcome=outcome,
@@ -193,6 +201,7 @@ class ReplayEngine:
         self, cap: Capability, inputs: Mapping[str, str], *, ignore: frozenset[str] = frozenset()
     ) -> tuple[RunStatus, OutcomeInfo | None, RunError | None]:
         """Run a capability inside the current run (e.g. sign-on). Logged, not reported."""
+        cap = self._effective(cap)
         state = _Run(cap, ignore_states=ignore)
         self.log.emit("subrun_started", capability=cap.ref)
         try:
@@ -240,7 +249,7 @@ class ReplayEngine:
             ) from exc
         self.ensure_session(state.cap)
         if top_level and state.cap.requires:
-            self._check_fingerprint()
+            self._check_application(state.cap)
 
         index = 0
         steps = state.cap.steps
@@ -677,6 +686,44 @@ class ReplayEngine:
                 return res
             self.surface.wait(self.poll_ms)
         return None
+
+    def _effective(self, cap: Capability) -> Capability:
+        """Apply the tenant's overlay for this capability, if there is one."""
+        if self.tenant is None or cap.id not in self.tenant.overlays:
+            return cap
+        overlay = self.tenant.overlays[cap.id]
+        effective = apply_overlay(cap, overlay)
+        self.log.emit(
+            "overlay_applied",
+            tenant=overlay.tenant,
+            capability=cap.ref,
+            reason=overlay.reason,
+            base_hash=cap.content_hash(),
+            effective_hash=effective.content_hash(),
+        )
+        return effective
+
+    def _check_application(self, cap: Capability) -> None:
+        """Before acting: is this the right product (fingerprint), and a version the
+        capability was validated for? A mismatch stops the run instead of guessing."""
+        self._check_fingerprint()
+        if not self.profile.version_pattern:
+            return
+        m = re.search(self.profile.version_pattern, self.surface.text_excerpt(limit=50_000))
+        if m is None:
+            return
+        self.app_version = m.group(1)
+        self.log.emit("app_version", version=self.app_version, supported=cap.app.product_versions)
+        if not version_in_range(self.app_version, cap.app.product_versions):
+            raise RunStop(
+                "failed",
+                error=RunError(
+                    category="UNKNOWN_STATE",
+                    message=f"application version {self.app_version} is outside the range "
+                    f"{cap.app.product_versions!r} this capability was validated for; "
+                    "refusing to run (re-validate it, or add a tenant overlay)",
+                ),
+            )
 
     def _check_fingerprint(self) -> None:
         if not self.profile.fingerprint:

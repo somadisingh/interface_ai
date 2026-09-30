@@ -11,6 +11,7 @@ description: Fictional legacy core-banking back office (frameset UI, nav + main 
 fingerprint:
   - kind: text
     pattern: 'MockCore 4\.\d+\.\d+'
+version_pattern: 'MockCore (\d+\.\d+\.\d+)'
 
 session:
   sign_on_capability: session.sign_on

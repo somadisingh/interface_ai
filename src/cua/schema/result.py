@@ -72,6 +72,10 @@ class RunResult(Model):
     capability: str
     """``product/id@version`` of the capability that ran."""
     content_hash: str
+    """Hash of the *effective* capability (after any tenant overlay)."""
+    tenant: str | None = None
+    app_version: str | None = None
+    """Product version detected on the live application."""
     status: RunStatus
     outputs: dict[str, JsonValue] = Field(default_factory=dict)
     outcome: OutcomeInfo | None = None

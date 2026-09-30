@@ -1,0 +1,16 @@
+schema_version: "1.0"
+tenant: harbor_valley_fcu
+capability: member.read_savings_balance
+applies_to: ">=1.0.0,<2.0.0"
+reason: >-
+  Harbor Valley runs MockCore 4.3 with its own wording: "Find Member" menu entry,
+  "Account Number:" label, "Find" button and a "Balance" column.
+targets:
+  nav_member_search:
+    locators: [{strategy: role, role: link, name: Find Member}]
+  member_id_field:
+    locators: [{strategy: anchor, anchor_text: "Account Number:", role: textbox}]
+  search_button:
+    locators: [{strategy: text, text: Find}]
+  savings_balance_cell:
+    locators: [{strategy: table_cell, row_text: Share Savings, column_header: Balance}]

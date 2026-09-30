@@ -36,6 +36,7 @@ This project is being built in vertical slices. Checked items are implemented an
 - [x] Deterministic replay engine with error taxonomy, recovery, drift detection and approvals
 - [x] Human-in-the-loop handoff: control lease, intervention queue, local operator page, capture of the person's actions
 - [x] Evidence per run: redacted event log, masked screenshots, Playwright trace on failure, generated `run_report.md`
+- [x] Stretch: cross-tenant reuse (tenant overlays + product-version gate)
 - [ ] Curated `/evidence/` (real discovery run + replay runs) and design write-up (`REPORT.md`)
 
 ## Demo path
@@ -214,6 +215,30 @@ uv run cua replay mockcore/member.read_savings_balance --input member_id=12345 \
   --human operator --escalate
 ```
 
+## Cross-tenant reuse
+
+Many institutions run the same vendor product, configured differently. Capabilities are
+written once per **product** and refer to elements by name (`member_id_field`). A tenant
+that differs gets a small, reviewable overlay in `tenants/<tenant>/overrides/<capability>.yaml`
+instead of a re-recording. An overlay can:
+- prepend tenant-specific locators to named targets (the base locators remain as
+  fallbacks, so drift is still detected);
+- add targets;
+- insert extra steps (e.g. a consent checkbox this tenant requires).
+
+Tenant-level app-profile overrides go in `tenant.yaml`. Before acting, replay reads the
+product version off the page and refuses to run a capability outside the version range it
+was validated for.
+
+```bash
+uv run cua mockcore --variant b --port 8767      # "Harbor Valley": same product, v4.3, different wording
+uv run cua replay mockcore/member.read_savings_balance --input member_id=12345 --tenant harbor_valley_fcu
+```
+
+Without an overlay, the base capability still succeeds on the second tenant via fallback
+locators, and the result lists drift warnings. With the overlay it runs with no drift, and
+the result records `tenant` and the detected `app_version`.
+
 ## Repository layout
 
 ```
@@ -232,6 +257,7 @@ src/mockcore/       the fictional legacy target app
 apps/               app profiles (one per vendor product)
 capabilities/       capability artifacts
 policy.yaml         guardrail policy (allowlist, action types, risk keywords, limits)
+tenants/            per-institution config and capability overlays
 schema/             generated JSON Schemas for the artifact formats
 tests/              unit, HTTP-level and browser tests
 ```
