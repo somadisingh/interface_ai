@@ -1,0 +1,295 @@
+{
+  "$defs": {
+    "DriftWarning": {
+      "additionalProperties": false,
+      "properties": {
+        "step_id": {
+          "title": "Step Id",
+          "type": "string"
+        },
+        "target": {
+          "title": "Target",
+          "type": "string"
+        },
+        "used_strategy": {
+          "title": "Used Strategy",
+          "type": "string"
+        },
+        "used_index": {
+          "minimum": 1,
+          "title": "Used Index",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "step_id",
+        "target",
+        "used_strategy",
+        "used_index"
+      ],
+      "title": "DriftWarning",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "OutcomeInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "maxLength": 64,
+          "pattern": "^[A-Z][A-Z0-9_]*$",
+          "title": "Code",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "retryable": {
+          "title": "Retryable",
+          "type": "boolean"
+        },
+        "step_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Id"
+        },
+        "source": {
+          "enum": [
+            "capability",
+            "app_profile"
+          ],
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "description",
+        "retryable",
+        "source"
+      ],
+      "title": "OutcomeInfo",
+      "type": "object"
+    },
+    "RecoveryRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "step_id": {
+          "title": "Step Id",
+          "type": "string"
+        },
+        "state": {
+          "title": "State",
+          "type": "string"
+        },
+        "action": {
+          "title": "Action",
+          "type": "string"
+        },
+        "attempt": {
+          "minimum": 1,
+          "title": "Attempt",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "step_id",
+        "state",
+        "action",
+        "attempt"
+      ],
+      "title": "RecoveryRecord",
+      "type": "object"
+    },
+    "RunError": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "enum": [
+            "INVALID_INPUT",
+            "POLICY_VIOLATION",
+            "LOCATOR_NOT_FOUND",
+            "LOCATOR_AMBIGUOUS",
+            "CHECKPOINT_FAILED",
+            "UNKNOWN_STATE",
+            "APP_ERROR",
+            "TIMEOUT",
+            "SESSION_UNRECOVERABLE",
+            "RECOVERY_EXHAUSTED",
+            "APPROVAL_DENIED",
+            "HUMAN_ABORTED"
+          ],
+          "title": "Category",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "step_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Id"
+        },
+        "expected": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected"
+        },
+        "observed": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observed"
+        },
+        "evidence": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence",
+          "type": "array"
+        }
+      },
+      "required": [
+        "category",
+        "message"
+      ],
+      "title": "RunError",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "capability": {
+      "title": "Capability",
+      "type": "string"
+    },
+    "content_hash": {
+      "title": "Content Hash",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "success",
+        "business_outcome",
+        "failed",
+        "escalated"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "outputs": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Outputs",
+      "type": "object"
+    },
+    "outcome": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/OutcomeInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "error": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RunError"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "recoveries": {
+      "items": {
+        "$ref": "#/$defs/RecoveryRecord"
+      },
+      "title": "Recoveries",
+      "type": "array"
+    },
+    "drift_warnings": {
+      "items": {
+        "$ref": "#/$defs/DriftWarning"
+      },
+      "title": "Drift Warnings",
+      "type": "array"
+    },
+    "interventions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Interventions",
+      "type": "array"
+    },
+    "started_at": {
+      "format": "date-time",
+      "title": "Started At",
+      "type": "string"
+    },
+    "finished_at": {
+      "format": "date-time",
+      "title": "Finished At",
+      "type": "string"
+    },
+    "evidence_dir": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Evidence Dir"
+    }
+  },
+  "required": [
+    "run_id",
+    "capability",
+    "content_hash",
+    "status",
+    "started_at",
+    "finished_at"
+  ],
+  "title": "RunResult",
+  "type": "object"
+}

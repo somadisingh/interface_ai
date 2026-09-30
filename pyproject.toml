@@ -57,3 +57,6 @@ mypy_path = "src"
 strict_optional = true
 warn_unused_ignores = true
 ignore_missing_imports = true
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["typer.Argument", "typer.Option"]

@@ -1,0 +1,100 @@
+# Hand-written reference fixture: the shape a compiled discovery run should take.
+# (The real artifact under capabilities/ is produced by an actual discovery run.)
+schema_version: "1.0"
+id: member.read_savings_balance
+version: 1.0.0
+summary: Look up a member by member number and return their share-savings balance.
+app:
+  product: mockcore
+  product_versions: ">=4.0,<5.0"
+  surface: web
+requires: [session.sign_on]
+
+inputs:
+  member_id:
+    type: string
+    description: Member number as issued by the institution.
+    pattern: '^[0-9]{1,10}$'
+
+outputs:
+  savings_balance:
+    type: money
+    description: Current balance of the member's primary Share Savings account.
+    sensitivity: pii
+
+outcomes:
+  MEMBER_NOT_FOUND:
+    description: No member matches the given member number.
+  INVALID_MEMBER_ID:
+    description: The application rejected the member number format.
+
+targets:
+  nav_member_search:
+    description: Member Search entry in the left navigation frame
+    frame: [{name: nav}]
+    locators:
+      - {strategy: role, role: link, name: Member Search}
+      - {strategy: text, text: Member Search}
+      - {strategy: attribute, tag: a, attribute: href, value: /members/search}
+  member_id_field:
+    description: Member ID text box on the member search form
+    frame: [{name: main}]
+    locators:
+      - {strategy: anchor, anchor_text: "Member ID:", relation: same_row, role: textbox}
+      - {strategy: attribute, tag: input, attribute: name, value: mid}
+    robustness_note: >-
+      The "Member ID:" label is a sibling table cell, not a <label>, so the textbox has no
+      accessible name; the innermost row containing the label text identifies it.
+  search_button:
+    description: Search "button" (a clickable span, not a real button)
+    frame: [{name: main}]
+    locators:
+      - {strategy: text, text: Search}
+      - {strategy: css, selector: "form[name=f1] span.btn:first-of-type"}
+  result_member_link:
+    description: The member-number link in the search results grid
+    frame: [{name: main}]
+    locators:
+      - {strategy: role, role: link, name: "{{inputs.member_id}}"}
+      - {strategy: table_cell, row_text: "{{inputs.member_id}}", column_header: "Member #"}
+  savings_balance_cell:
+    description: Balance of the Share Savings account on the member detail page
+    frame: [{name: main}]
+    sensitive: true
+    locators:
+      - {strategy: table_cell, row_text: Share Savings, column_header: Current Balance}
+      - {strategy: css, selector: "table.grid tr:nth-child(2) td:nth-child(4)"}
+    robustness_note: >-
+      Addressed as a human reads the grid (row "Share Savings", column "Current Balance");
+      the CSS fallback depends on account order and is a last resort.
+
+steps:
+  - id: open_member_search
+    intent: Open member search from the navigation menu
+    action: {type: click, target: nav_member_search}
+    expect: [{kind: visible, target: member_id_field}]
+  - id: enter_member_id
+    intent: Enter the member number
+    action: {type: fill, target: member_id_field, value: "{{inputs.member_id}}"}
+  - id: submit_search
+    intent: Run the search
+    action: {type: click, target: search_button}
+    expect: [{kind: visible, target: result_member_link}]
+    outcomes:
+      - when: {kind: text, pattern: NO MEMBERS FOUND MATCHING, frame: [{name: main}]}
+        outcome: MEMBER_NOT_FOUND
+      - when: {kind: text, pattern: E102 INVALID MEMBER NUMBER, frame: [{name: main}]}
+        outcome: INVALID_MEMBER_ID
+  - id: open_member
+    intent: Open the member's detail page
+    action: {type: click, target: result_member_link}
+    expect: [{kind: visible, target: savings_balance_cell}]
+  - id: read_savings_balance
+    intent: Read the Share Savings balance
+    action: {type: extract, target: savings_balance_cell, into: savings_balance, parse: money}
+
+success:
+  - {kind: output, name: savings_balance}
+
+provenance:
+  source: hand_authored

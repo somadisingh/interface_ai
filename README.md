@@ -28,7 +28,7 @@ This project is being built in vertical slices. Checked items are implemented an
 
 - [x] Project scaffold, CLI, lint/type-check/test tooling, CI
 - [x] **MockCore**, a hostile legacy target app with injectable runtime faults and a second-tenant variant
-- [ ] Capability artifact schema and replay result contract
+- [x] Capability artifact schema, shared app profile, and replay result contract
 - [ ] Surface abstraction and Playwright web implementation
 - [ ] Guardrails: allowlist, risk classification, redaction
 - [ ] LLM discovery loop and recorder
@@ -107,6 +107,24 @@ confirm. Confirm is irreversible and uses a single-use transaction token.
 The `/__admin/*` endpoints are test hooks, not part of the app surface. The automation's
 allowlist never permits them.
 
+## Artifact formats
+
+| Artifact | Where | What it is |
+|---|---|---|
+| Capability | `capabilities/<product>/<id>/<version>.yaml` | One reusable flow: typed inputs/outputs, business outcomes, targets (ordered locator bundles), steps with checkpoints, success condition, review status, provenance |
+| App profile | `apps/<product>/profile.yaml` | Product-wide knowledge shared by all its capabilities: fingerprint, sign-on capability, known runtime states (interstitials, session expiry, access denied, error page) and how to handle each |
+| Run result | returned by replay | `success` / `business_outcome` / `failed` / `escalated`, with outputs, outcome code, or a structured error (step, expected, observed, evidence) |
+
+JSON Schemas for all three are in [`schema/`](schema/) (regenerate with `uv run cua schema-export`).
+Validate artifacts, including every cross-reference, with:
+
+```bash
+uv run cua validate apps/mockcore/profile.yaml capabilities/mockcore/session.sign_on/1.0.0.yaml
+```
+
+YAML is loaded strictly: values like `01234` or `no` stay strings instead of being silently
+converted, and duplicate keys are rejected.
+
 ## Repository layout
 
 ```
@@ -122,6 +140,9 @@ src/cua/            the automation system
   evidence/         structured logs, screenshots, traces, run reports
   cli.py            single CLI entry point (`cua ...`)
 src/mockcore/       the fictional legacy target app
+apps/               app profiles (one per vendor product)
+capabilities/       capability artifacts
+schema/             generated JSON Schemas for the artifact formats
 tests/              unit, HTTP-level and browser tests
 ```
 

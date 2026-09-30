@@ -1,0 +1,63 @@
+# Hand-authored on purpose: sign-on handles credentials, and credentials must never be shown
+# to the discovery model. Every other capability declares `requires: [session.sign_on]`
+# instead of logging in itself.
+schema_version: "1.0"
+id: session.sign_on
+version: 1.0.0
+summary: Sign on to MockCore with the service account from the runtime secrets.
+app:
+  product: mockcore
+  product_versions: ">=4.0,<5.0"
+  surface: web
+
+outcomes:
+  INVALID_CREDENTIALS:
+    description: The configured service-account credentials were rejected.
+    retryable: false
+
+targets:
+  user_id_field:
+    description: User ID text box on the sign-on page
+    locators:
+      - {strategy: anchor, anchor_text: "User ID:", relation: same_row, role: textbox}
+      - {strategy: attribute, tag: input, attribute: name, value: uid}
+    robustness_note: >-
+      The label is a table cell, not a <label>, so the field has no accessible name; the
+      field is identified by the innermost row that carries the "User ID:" text.
+  password_field:
+    description: Password box on the sign-on page
+    sensitive: true
+    locators:
+      - {strategy: anchor, anchor_text: "Password:", relation: same_row}
+      - {strategy: attribute, tag: input, attribute: name, value: pwd}
+    robustness_note: Password inputs expose no textbox role, so the anchor omits the role.
+  sign_on_button:
+    description: Sign On submit button
+    locators:
+      - {strategy: role, role: button, name: Sign On}
+      - {strategy: attribute, tag: input, attribute: value, value: Sign On}
+
+steps:
+  - id: open_sign_on
+    intent: Open the sign-on page
+    action: {type: navigate, path: /login}
+    expect: [{kind: visible, target: user_id_field}]
+  - id: enter_user_id
+    intent: Enter the service-account user id
+    action: {type: fill, target: user_id_field, value: "{{secrets.MOCKCORE_USERNAME}}"}
+  - id: enter_password
+    intent: Enter the service-account password
+    action: {type: fill, target: password_field, value: "{{secrets.MOCKCORE_PASSWORD}}"}
+  - id: submit
+    intent: Submit the sign-on form
+    action: {type: click, target: sign_on_button}
+    expect: [{kind: url, pattern: '/app$'}]
+    outcomes:
+      - when: {kind: text, pattern: E001 INVALID USER ID OR PASSWORD}
+        outcome: INVALID_CREDENTIALS
+
+success:
+  - {kind: url, pattern: '/app$'}
+
+provenance:
+  source: hand_authored

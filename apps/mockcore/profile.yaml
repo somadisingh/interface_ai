@@ -1,0 +1,85 @@
+# App profile for the MockCore product.
+#
+# App-wide runtime states that any capability targeting MockCore can run into. Written by
+# hand from knowledge of the product (flow-specific business outcomes live in each
+# capability instead, and are derived from discovery runs).
+schema_version: "1.0"
+product: mockcore
+product_versions: ">=4.0,<5.0"
+description: Fictional legacy core-banking back office (frameset UI, nav + main frames).
+
+fingerprint:
+  - kind: text
+    pattern: 'MockCore 4\.\d+\.\d+'
+
+session:
+  sign_on_capability: session.sign_on
+
+targets:
+  maintenance_ack:
+    description: Acknowledge button on the scheduled-maintenance notice
+    frame: [{name: main}]
+    locators:
+      - {strategy: role, role: button, name: Acknowledge}
+      - {strategy: attribute, tag: input, attribute: value, value: Acknowledge}
+  security_notice_ok:
+    description: OK "button" (a clickable span) on the password-expiry overlay
+    frame: [{name: main}]
+    locators:
+      - {strategy: text, text: OK}
+      - {strategy: css, selector: ".overlay .btn"}
+    robustness_note: >-
+      The overlay's OK is a span with an onclick handler, so it has no button role; exact
+      visible text is the most stable handle.
+
+states:
+  maintenance_notice:
+    description: Scheduled-maintenance interstitial shown before main pages
+    kind: interstitial
+    detect: {kind: text, pattern: SCHEDULED MAINTENANCE NOTICE, frame: [{name: main}]}
+    handler:
+      actions: [{type: click, target: maintenance_ack}]
+      then: resume
+
+  password_expiry_notice:
+    description: Password-expiry overlay that blocks clicks until dismissed
+    kind: interstitial
+    detect: {kind: text, pattern: SECURITY NOTICE, frame: [{name: main}]}
+    handler:
+      actions: [{type: click, target: security_notice_ok}]
+      then: resume
+
+  session_expired:
+    description: Session timed out; the sign-on page replaced the current page
+    kind: session_expired
+    detect: {kind: text, pattern: YOUR SESSION HAS EXPIRED}
+    handler:
+      run_capability: session.sign_on
+      then: restart_capability
+
+  access_denied:
+    description: The signed-on user lacks privileges for this record
+    kind: business_outcome
+    detect: {kind: text, pattern: ACCESS DENIED}
+    outcome: PERMISSION_DENIED
+    retryable: false
+
+  record_not_found:
+    description: A member record addressed directly does not exist
+    kind: business_outcome
+    detect: {kind: text, pattern: E404 MEMBER RECORD NOT FOUND}
+    outcome: RECORD_NOT_FOUND
+    retryable: false
+
+  transaction_not_processed:
+    description: Duplicate or expired submission; the transaction was NOT processed
+    kind: business_outcome
+    detect: {kind: text, pattern: TRANSACTION NOT PROCESSED}
+    outcome: TRANSACTION_NOT_PROCESSED
+    retryable: true
+
+  application_error:
+    description: Generic application error page
+    kind: failure
+    detect: {kind: text, pattern: 'CORE-E\d+ UNEXPECTED APPLICATION ERROR'}
+    failure_category: APP_ERROR
