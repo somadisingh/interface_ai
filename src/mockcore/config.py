@@ -50,6 +50,9 @@ class Faults:
     """Show a 'scheduled maintenance' interstitial once per session before main pages."""
     password_modal: bool = False
     """Overlay a 'password expires soon' modal once per session."""
+    announcement: bool = False
+    """Overlay an unexpected 'branch announcement' dialog once per session. Deliberately NOT
+    described in the app profile: automation can't recognise it, so it must escalate."""
     slow_ms: int = 0
     """Delay every main-frame page by this many milliseconds."""
     session_timeout_after: int | None = None
@@ -76,6 +79,8 @@ class Faults:
                 values["maintenance_notice"] = True
             elif key == "modal":
                 values["password_modal"] = True
+            elif key == "announcement":
+                values["announcement"] = True
             elif key == "slow":
                 values["slow_ms"] = int(value or "3000")
             elif key == "session_timeout":
@@ -94,6 +99,7 @@ class Faults:
         return {
             "maintenance_notice": self.maintenance_notice,
             "password_modal": self.password_modal,
+            "announcement": self.announcement,
             "slow_ms": self.slow_ms,
             "session_timeout_after": self.session_timeout_after,
             "error_500_paths": list(self.error_500_paths),

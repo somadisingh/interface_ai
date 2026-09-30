@@ -210,3 +210,11 @@ def test_reset_restores_seed_and_clears_faults(client: TestClient) -> None:
     fresh = TestClient(client.app)
     fresh.post("/login", data={"uid": USERNAME, "pwd": PASSWORD})
     assert fresh.get("/home").url.path == "/home"
+
+
+def test_announcement_overlay_on_member_pages_until_dismissed(client: TestClient) -> None:
+    client.post("/__admin/faults", json={"spec": "announcement"})
+    assert "BRANCH ANNOUNCEMENT" not in client.get("/home").text
+    assert "BRANCH ANNOUNCEMENT" in client.get("/members/search").text
+    client.post("/announcement/dismiss")
+    assert "BRANCH ANNOUNCEMENT" not in client.get("/members/search").text

@@ -146,7 +146,8 @@ confirm. Confirm is irreversible and uses a single-use transaction token.
 | Fault | Effect |
 |---|---|
 | `maintenance` | "Scheduled maintenance" interstitial before main pages, once per session |
-| `modal` | "Password expires" overlay that blocks clicks, once per session |
+| `modal` | "Password expires" overlay that blocks clicks, once per session (known to the app profile: recovered automatically) |
+| `announcement` | Unexpected "branch announcement" overlay on member pages, once per session (deliberately unknown to the profile: escalates to a human) |
 | `slow=MS` | Delays every main-frame page |
 | `session_timeout=N` | Session expires (once) after N page loads; the main frame falls back to sign-on |
 | `error500=/prefix` | Application error page (HTTP 500) for matching paths |
@@ -210,7 +211,7 @@ Every control transfer (automation → paused → human → automation) is logge
 and why, and appears in the run report.
 
 ```bash
-uv run cua mockcore --faults modal          # an overlay the app profile could fail to recognise
+uv run cua mockcore --faults announcement   # a dialog the app profile does not know about
 uv run cua replay mockcore/member.read_savings_balance --input member_id=12345 \
   --human operator --escalate
 ```

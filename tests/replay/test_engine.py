@@ -297,3 +297,12 @@ def test_validation_rejection_is_a_business_outcome(
     result = replay(base, tmp_path, OPEN, OPEN_INPUTS | {"deposit": "1.00"})
     assert result.status == "business_outcome" and result.outcome is not None
     assert result.outcome.code == "VALIDATION_REJECTED"
+
+
+def test_unknown_dialog_fails_without_escalation(
+    live_mockcore: LiveServer, base: str, tmp_path: Path
+) -> None:
+    live_mockcore.set_faults("announcement")
+    result = replay(base, tmp_path, READ, {"member_id": "12345"})
+    assert result.status == "failed" and result.error is not None
+    assert result.error.category == "UNKNOWN_STATE"

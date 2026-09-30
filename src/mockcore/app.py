@@ -38,6 +38,7 @@ class Session:
     requests: int = 0
     notice_acknowledged: bool = False
     modal_dismissed: bool = False
+    announcement_dismissed: bool = False
     pending: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
@@ -72,6 +73,12 @@ def create_app(config: MockCoreConfig | None = None) -> FastAPI:
             product_version=cfg.labels["product_version"],
             show_modal=bool(
                 cfg.faults.password_modal and session is not None and not session.modal_dismissed
+            ),
+            show_announcement=bool(
+                cfg.faults.announcement
+                and session is not None
+                and not session.announcement_dismissed
+                and request.url.path.startswith("/members")
             ),
         )
         return templates.TemplateResponse(request, name, ctx, status_code=status)
@@ -213,6 +220,13 @@ def create_app(config: MockCoreConfig | None = None) -> FastAPI:
         s = _current_session(request)
         if s is not None:
             s.modal_dismissed = True
+        return Response(status_code=204)
+
+    @app.post("/announcement/dismiss")
+    async def announcement_dismiss(request: Request) -> Response:
+        s = _current_session(request)
+        if s is not None:
+            s.announcement_dismissed = True
         return Response(status_code=204)
 
     # ------------------------------------------------------------------ members

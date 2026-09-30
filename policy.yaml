@@ -20,6 +20,7 @@ allowed_paths:
   - /home
   - /notice*
   - /modal/dismiss
+  - /announcement/dismiss
   - /members/*
   - /favicon.ico
 

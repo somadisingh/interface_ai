@@ -30,5 +30,12 @@ function go(url) { window.location.href = url; }
   <span class="btn" onclick="var o=this.parentNode.parentNode; fetch('/modal/dismiss',{method:'POST'}).then(function(){o.parentNode.removeChild(o);});">OK</span>
 </div></div>
 {% endif %}
+{% if show_announcement %}
+<div class="overlay"><div class="box">
+  <b>BRANCH ANNOUNCEMENT</b><br><br>
+  The Elm Street branch will close early on Friday. Please inform members at the teller line.<br><br>
+  <span class="btn" onclick="var o=this.parentNode.parentNode; fetch('/announcement/dismiss',{method:'POST'}).then(function(){o.parentNode.removeChild(o);});">Close</span>
+</div></div>
+{% endif %}
 </body>
 </html>
