@@ -29,8 +29,8 @@ This project is being built in vertical slices. Checked items are implemented an
 - [x] Project scaffold, CLI, lint/type-check/test tooling, CI
 - [x] **MockCore**, a hostile legacy target app with injectable runtime faults and a second-tenant variant
 - [x] Capability artifact schema, shared app profile, and replay result contract
-- [ ] Surface abstraction and Playwright web implementation
-- [ ] Guardrails: allowlist, risk classification, redaction
+- [x] Surface abstraction and Playwright web implementation (multi-frame, verified locator generation, drift detection, masked screenshots)
+- [x] Guardrails: browser-enforced allowlist, risk classification with tiered approval, redaction
 - [ ] LLM discovery loop and recorder
 - [ ] Compiler (trace → artifact)
 - [ ] Deterministic replay engine with error taxonomy and recovery
@@ -125,6 +125,24 @@ uv run cua validate apps/mockcore/profile.yaml capabilities/mockcore/session.sig
 YAML is loaded strictly: values like `01234` or `no` stay strings instead of being silently
 converted, and duplicate keys are rejected.
 
+## Guardrails
+
+[`policy.yaml`](policy.yaml) configures what the automation may touch and do:
+
+- **Allowlist:** permitted origins and paths, plus denied paths (deny always wins). This is
+  enforced by the browser for **every request**, so it can't be bypassed by agent logic.
+  MockCore's `/__admin` test hooks are denied.
+- **Risk:** a click whose label contains words like *confirm, submit, transfer* is
+  irreversible. Effective risk is the higher of what the capability declares and what the
+  label implies, so a capability can never downgrade a Confirm button to "safe".
+- **Tiered approval:** during discovery, irreversible actions always need a human. On
+  replay they need a human unless the capability is `approved` **and** a reviewer marked
+  that step `auto_approve_on_replay`.
+- **Redaction:** secrets are resolved from the environment at the moment of use and
+  replaced with `[SECRET]` everywhere. Declared PII values are masked (`***45`), and SSNs,
+  Luhn-valid card numbers and e-mail addresses are caught by pattern. Screenshots have
+  sensitive elements and matching text painted over before the image is written.
+
 ## Repository layout
 
 ```
@@ -142,6 +160,7 @@ src/cua/            the automation system
 src/mockcore/       the fictional legacy target app
 apps/               app profiles (one per vendor product)
 capabilities/       capability artifacts
+policy.yaml         guardrail policy (allowlist, action types, risk keywords, limits)
 schema/             generated JSON Schemas for the artifact formats
 tests/              unit, HTTP-level and browser tests
 ```

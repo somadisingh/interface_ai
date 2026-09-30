@@ -1,0 +1,54 @@
+# Guardrail policy for automating the local MockCore app.
+#
+# Where the automation may go (every browser request is checked against this, and blocked
+# requests are logged), which action types it may perform, and which control labels mark an
+# action as irreversible.
+schema_version: "1.0"
+name: mockcore-local
+
+allowed_origins:
+  - "http://127.0.0.1:*"
+  - "http://localhost:*"
+
+# `*` also matches `/`.
+allowed_paths:
+  - /
+  - /login
+  - /logout
+  - /app
+  - /nav
+  - /home
+  - /notice*
+  - /modal/dismiss
+  - /members/*
+  - /favicon.ico
+
+# Deny always wins over allow. MockCore's test hooks must be unreachable for the automation.
+denied_paths:
+  - /__admin*
+
+allowed_actions: [click, fill, select, check, press, navigate, extract]
+
+risk:
+  irreversible_keywords:
+    - confirm
+    - submit
+    - transfer
+    - delete
+    - remove
+    - close account
+    - approve
+    - post
+    - pay
+    - send
+    - open account
+  reversible_write_keywords:
+    - save
+    - update
+    - continue
+    - next
+    - add
+
+limits:
+  max_discovery_steps: 40
+  max_run_seconds: 300
