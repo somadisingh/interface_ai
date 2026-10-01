@@ -104,6 +104,7 @@ cp .env.example .env                 # fill in values; .env is git-ignored
 |---|---|
 | `ANTHROPIC_API_KEY` | Discovery runs only. Replay never calls the model. |
 | `CUA_MODEL` | Model used for discovery. |
+| `ANTHROPIC_WORKSPACE_ID` | Only if your API key isn't scoped to a workspace: the workspace to bill discovery to. |
 | `MOCKCORE_USERNAME` / `MOCKCORE_PASSWORD` | Sign-on for the local MockCore app (fake credentials). |
 
 Run the checks:

@@ -44,7 +44,10 @@ class AnthropicClient:
 
         self.model = model or os.environ.get("CUA_MODEL") or DEFAULT_MODEL
         self.max_tokens = max_tokens
-        self._client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY
+        # Reads ANTHROPIC_API_KEY. Keys that are not scoped to a workspace must name one.
+        workspace = os.environ.get("ANTHROPIC_WORKSPACE_ID")
+        headers = {"anthropic-workspace-id": workspace} if workspace else None
+        self._client = anthropic.Anthropic(default_headers=headers)
 
     def complete(
         self, system: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
