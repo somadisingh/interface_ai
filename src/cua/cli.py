@@ -146,7 +146,10 @@ def discover(
     product: str = typer.Option("mockcore", help="App product (selects apps/<product>/)."),
     base_url: str = typer.Option(DEFAULT_BASE_URL, help="Base URL of the app instance."),
     headed: bool = typer.Option(False, help="Show the browser window."),
-    model: str | None = typer.Option(None, help="Model id (default: $CUA_MODEL or Sonnet)."),
+    model: str | None = typer.Option(None, help="Model id (default: $CUA_MODEL)."),
+    provider: str | None = typer.Option(
+        None, help="LLM provider: anthropic | gemini (default: $CUA_LLM_PROVIDER, else inferred)."
+    ),
     max_steps: int | None = typer.Option(None, help="Step budget (default: policy.yaml)."),
     human: str = typer.Option(
         "operator", help="Human channel: operator (page + visible browser) | terminal | none."
@@ -160,7 +163,7 @@ def discover(
     from dotenv import load_dotenv
 
     from cua.agent.discovery import DiscoveryAgent, DiscoverySpec
-    from cua.agent.llm import AnthropicClient
+    from cua.agent.llm import make_llm
     from cua.compiler.compile import compile_trace, merge_outcome, next_version
     from cua.recorder.trace import ParamSpec
     from cua.runtime import open_runtime
@@ -181,7 +184,10 @@ def discover(
             }
         )
     types = {k: ParamSpec(sensitivity="none" if k in public_param else "pii") for k in params}
-    llm = AnthropicClient(model)
+    try:
+        llm = make_llm(provider, model)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
 
     channel = _human_channel(human)
     with open_runtime(

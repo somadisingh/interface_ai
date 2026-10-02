@@ -42,7 +42,8 @@ person takes over the same live session and hands it back.
   It has switchable runtime faults and a second-tenant variant. Building it cost half a day
   but made every error class reproducible in tests and evidence. A public demo site would
   not allow that.
-- **Model:** Claude Sonnet 5.5 behind a one-method `LLMClient`. A scripted client makes the
+- **Model:** Claude (Sonnet 5.5) or Gemini (3.8 Flash) behind a one-method `LLMClient`; the
+  Gemini adapter translates tools, history and screenshots, and returns thought signatures. A scripted client makes the
   whole discovery → compile → replay loop testable offline against the real browser.
 
 ## 2. Artifact schema

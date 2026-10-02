@@ -31,7 +31,7 @@ This project is being built in vertical slices. Checked items are implemented an
 - [x] Capability artifact schema, shared app profile, and replay result contract
 - [x] Surface abstraction and Playwright web implementation (multi-frame, verified locator generation, drift detection, masked screenshots)
 - [x] Guardrails: browser-enforced allowlist, risk classification with tiered approval, redaction
-- [x] LLM discovery loop and recorder (Claude Sonnet 5.5 by default; scripted stand-in for offline tests)
+- [x] LLM discovery loop and recorder (Claude or Gemini behind one interface; scripted stand-in for offline tests)
 - [x] Compiler (trace → artifact), including merging business outcomes learned from negative discovery runs
 - [x] Deterministic replay engine with error taxonomy, recovery, drift detection and approvals
 - [x] Human-in-the-loop handoff: control lease, intervention queue, local operator page, capture of the person's actions
@@ -50,7 +50,7 @@ uv run cua mockcore
 Terminal 2: discover a capability with the LLM, review it, then replay it without the LLM.
 
 ```bash
-# 1. Discovery (needs ANTHROPIC_API_KEY in .env). Signs on with the service account from .env
+# 1. Discovery (needs ANTHROPIC_API_KEY, or GEMINI_API_KEY with CUA_LLM_PROVIDER=gemini, in .env). Signs on with the service account from .env
 #    first; the model never sees credentials. Writes capabilities/mockcore/<id>/<version>.yaml.
 uv run cua discover \
   --capability member.read_savings_balance \
@@ -102,9 +102,11 @@ cp .env.example .env                 # fill in values; .env is git-ignored
 
 | Variable | Used for |
 |---|---|
-| `ANTHROPIC_API_KEY` | Discovery runs only. Replay never calls the model. |
-| `CUA_MODEL` | Model used for discovery. |
-| `ANTHROPIC_WORKSPACE_ID` | Only if your API key isn't scoped to a workspace: the workspace to bill discovery to. |
+| `CUA_LLM_PROVIDER` | `anthropic` (default) or `gemini`. Also inferred from a `gemini-*` model name; `--provider` overrides. |
+| `ANTHROPIC_API_KEY` | Discovery with Claude. Replay never calls a model. |
+| `ANTHROPIC_WORKSPACE_ID` | Only if your Anthropic key isn't scoped to a workspace: the workspace to bill discovery to. |
+| `GEMINI_API_KEY` | Discovery with Gemini. |
+| `CUA_MODEL` | Model used for discovery (defaults: `claude-sonnet-5-5`, `gemini-3.8-flash`). |
 | `MOCKCORE_USERNAME` / `MOCKCORE_PASSWORD` | Sign-on for the local MockCore app (fake credentials). |
 
 Run the checks:
