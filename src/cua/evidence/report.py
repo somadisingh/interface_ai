@@ -113,7 +113,8 @@ def _describe(e: dict[str, Any], intents: dict[str, str]) -> tuple[str, str, str
         value = f" = {e['value']}" if e.get("value") else ""
         return (
             str(e.get("by", "human")),
-            f"Person {e.get('action')}ed",
+            f"Person {e.get('action')}ed"
+            + (" **without taking control**" if e.get("without_lease") else ""),
             "",
             f"'{what}'{value} in {e.get('frame')}",
         )

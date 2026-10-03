@@ -60,12 +60,18 @@ class OperatorChannel:
     # ------------------------------------------------------------------ recorder
 
     def _on_human_action(self, payload: dict[str, Any]) -> None:
-        if self.control.state != "human":
-            return  # automation's own clicks fire DOM events too; only record the person
+        state = self.control.state
+        if state == "automation":
+            return  # automation's own clicks fire DOM events too; only record people
+        # While paused, automation only waits, so any input comes from a person who has not
+        # taken the lease (e.g. clicked in the browser before pressing "Take control"). It is
+        # still recorded, flagged, so nothing done to the session goes unaudited.
+        without_lease = state != "human"
         record = self.log.redactor.value(
             {
                 "at": datetime.now(UTC).isoformat(timespec="milliseconds"),
-                "by": self.control.holder,
+                "by": "unknown" if without_lease else self.control.holder,
+                **({"without_lease": True} if without_lease else {}),
                 **payload,
             }
         )

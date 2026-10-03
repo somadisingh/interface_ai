@@ -235,3 +235,33 @@ def test_operator_approves_an_irreversible_step(
         "paused",
         "automation",
     ]
+
+
+def test_input_while_paused_is_recorded_as_unleased(tmp_path: Path) -> None:
+    """A person clicking in the browser before pressing "Take control" is still audited."""
+    from cua.evidence.log import EventLog
+    from cua.handoff.control import SessionControl
+    from cua.handoff.operator import OperatorChannel
+    from cua.handoff.queue import InterventionQueue
+    from cua.policy import Redactor
+
+    class Surface:
+        def install_human_recorder(self, cb: Callable[[dict[str, Any]], None]) -> None:
+            self.record = cb
+
+    surface, control = Surface(), SessionControl()
+    log = EventLog(tmp_path, "run-x", Redactor())
+    channel = OperatorChannel(surface, control, InterventionQueue(), log)  # type: ignore[arg-type]
+    click = {"action": "click", "tag": "span", "text": "Close", "frame": "main"}
+
+    surface.record(dict(click))  # automation acting: its own DOM events are not a person
+    control.transfer("paused", by="automation", reason="unknown dialog")
+    surface.record(dict(click))  # nobody holds the lease, yet someone clicked
+    control.transfer("human", by="alice", reason="took control")
+    surface.record(dict(click))
+
+    assert [(a["by"], a.get("without_lease", False)) for a in channel.human_actions] == [
+        ("unknown", True),
+        ("alice", False),
+    ]
+    assert len([e for e in _events(tmp_path) if e["type"] == "human_action"]) == 2
