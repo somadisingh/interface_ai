@@ -1,0 +1,273 @@
+{
+  "run_id": "disc-20261003T033622-82ef",
+  "capability_id": "member.read_savings_balance",
+  "product": "mockcore",
+  "goal": "Look up member {{inputs.member_id}} and read their current savings balance",
+  "params": {
+    "member_id": {
+      "type": "string",
+      "sensitivity": "pii"
+    }
+  },
+  "outputs": {
+    "savings_balance": {
+      "type": "money",
+      "description": "Current balance of the member's Share Savings account",
+      "sensitivity": "pii"
+    }
+  },
+  "requires": [
+    "session.sign_on"
+  ],
+  "model": "gemini-3.8-flash",
+  "started_at": "2026-10-03T03:36:24.050870Z",
+  "finished_at": "2026-10-03T03:39:05.822585Z",
+  "status": "succeeded",
+  "summary": "Member {{inputs.member_id}} (Jane Q Sample) was located, and the current savings balance of *******33 was extracted.",
+  "outcome_code": null,
+  "outcome_text": null,
+  "steps": [
+    {
+      "index": 0,
+      "actor": "agent",
+      "tool": "click",
+      "reason": "Click Member Search to look up member {{inputs.member_id}}",
+      "target": {
+        "description": "link \"Member Search\"",
+        "frame": [
+          {
+            "name": "nav",
+            "url_pattern": null
+          }
+        ],
+        "locators": [
+          {
+            "strategy": "role",
+            "role": "link",
+            "name": "Member Search",
+            "exact": true
+          },
+          {
+            "strategy": "text",
+            "text": "Member Search",
+            "exact": true
+          },
+          {
+            "strategy": "attribute",
+            "tag": "a",
+            "attribute": "href",
+            "value": "/members/search"
+          },
+          {
+            "strategy": "css",
+            "selector": "body > table > tbody > tr:nth-of-type(3) > td > a"
+          }
+        ],
+        "robustness_note": null,
+        "sensitive": false
+      },
+      "target_label": "Member Search",
+      "value": null,
+      "option": null,
+      "key": null,
+      "checked": null,
+      "output": null,
+      "risk": "safe",
+      "verdict": "allow",
+      "approved_by": null,
+      "result": "ok",
+      "detail": null,
+      "url_after": "http://127.0.0.1:8765/app"
+    },
+    {
+      "index": 1,
+      "actor": "agent",
+      "tool": "fill",
+      "reason": "Enter member ID {{inputs.member_id}} in Member ID field",
+      "target": {
+        "description": "textbox in the row labelled \"Member ID:\"",
+        "frame": [
+          {
+            "name": "main",
+            "url_pattern": null
+          }
+        ],
+        "locators": [
+          {
+            "strategy": "anchor",
+            "anchor_text": "Member ID:",
+            "relation": "same_row",
+            "role": "textbox"
+          },
+          {
+            "strategy": "attribute",
+            "tag": "input",
+            "attribute": "name",
+            "value": "mid"
+          },
+          {
+            "strategy": "css",
+            "selector": "form[name=\"f1\"] > table > tbody > tr:nth-of-type(1) > td:nth-of-type(2) > input"
+          }
+        ],
+        "robustness_note": null,
+        "sensitive": false
+      },
+      "target_label": "",
+      "value": "{{inputs.member_id}}",
+      "option": null,
+      "key": null,
+      "checked": null,
+      "output": null,
+      "risk": "safe",
+      "verdict": "allow",
+      "approved_by": null,
+      "result": "ok",
+      "detail": null,
+      "url_after": "http://127.0.0.1:8765/app"
+    },
+    {
+      "index": 2,
+      "actor": "agent",
+      "tool": "click",
+      "reason": "Click Search button to find member {{inputs.member_id}}",
+      "target": {
+        "description": "clickable \"Search\"",
+        "frame": [
+          {
+            "name": "main",
+            "url_pattern": null
+          }
+        ],
+        "locators": [
+          {
+            "strategy": "text",
+            "text": "Search",
+            "exact": true
+          },
+          {
+            "strategy": "css",
+            "selector": "form[name=\"f1\"] > table > tbody > tr:nth-of-type(3) > td:nth-of-type(2) > span:nth-of-type(1)"
+          }
+        ],
+        "robustness_note": null,
+        "sensitive": false
+      },
+      "target_label": "Search",
+      "value": null,
+      "option": null,
+      "key": null,
+      "checked": null,
+      "output": null,
+      "risk": "safe",
+      "verdict": "allow",
+      "approved_by": null,
+      "result": "ok",
+      "detail": null,
+      "url_after": "http://127.0.0.1:8765/app"
+    },
+    {
+      "index": 3,
+      "actor": "agent",
+      "tool": "click",
+      "reason": "Click member link {{inputs.member_id}} to view details",
+      "target": {
+        "description": "link \"{{inputs.member_id}}\"",
+        "frame": [
+          {
+            "name": "main",
+            "url_pattern": null
+          }
+        ],
+        "locators": [
+          {
+            "strategy": "role",
+            "role": "link",
+            "name": "{{inputs.member_id}}",
+            "exact": true
+          },
+          {
+            "strategy": "anchor",
+            "anchor_text": "SAMPLE, JANE Q",
+            "relation": "same_row",
+            "role": "link"
+          },
+          {
+            "strategy": "table_cell",
+            "row_text": "{{inputs.member_id}}",
+            "column_header": "Member #"
+          },
+          {
+            "strategy": "text",
+            "text": "{{inputs.member_id}}",
+            "exact": true
+          },
+          {
+            "strategy": "css",
+            "selector": "body > table > tbody > tr > td > table > tbody > tr:nth-of-type(2) > td:nth-of-type(1) > a"
+          }
+        ],
+        "robustness_note": null,
+        "sensitive": false
+      },
+      "target_label": "{{inputs.member_id}}",
+      "value": null,
+      "option": null,
+      "key": null,
+      "checked": null,
+      "output": null,
+      "risk": "safe",
+      "verdict": "allow",
+      "approved_by": null,
+      "result": "ok",
+      "detail": null,
+      "url_after": "http://127.0.0.1:8765/app"
+    },
+    {
+      "index": 4,
+      "actor": "agent",
+      "tool": "extract",
+      "reason": "Extract current balance of Share Savings account",
+      "target": {
+        "description": "\"Current Balance\" value in the row for \"S00\"",
+        "frame": [
+          {
+            "name": "main",
+            "url_pattern": null
+          }
+        ],
+        "locators": [
+          {
+            "strategy": "table_cell",
+            "row_text": "S00",
+            "column_header": "Current Balance"
+          },
+          {
+            "strategy": "css",
+            "selector": "body > table > tbody > tr > td > table:nth-of-type(2) > tbody > tr:nth-of-type(2) > td:nth-of-type(4)"
+          }
+        ],
+        "robustness_note": null,
+        "sensitive": false
+      },
+      "target_label": "*******33",
+      "value": null,
+      "option": null,
+      "key": null,
+      "checked": null,
+      "output": "savings_balance",
+      "risk": "safe",
+      "verdict": "allow",
+      "approved_by": null,
+      "result": "ok",
+      "detail": null,
+      "url_after": "http://127.0.0.1:8765/app"
+    }
+  ],
+  "recoveries": [],
+  "interventions": [],
+  "usage": {
+    "input_tokens": "[SECRET]",
+    "output_tokens": "[SECRET]"
+  }
+}

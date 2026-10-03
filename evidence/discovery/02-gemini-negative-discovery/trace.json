@@ -1,0 +1,176 @@
+{
+  "run_id": "disc-20261003T034306-d5bc",
+  "capability_id": "member.read_savings_balance",
+  "product": "mockcore",
+  "goal": "Look up member {{inputs.member_id}} and read their current savings balance",
+  "params": {
+    "member_id": {
+      "type": "string",
+      "sensitivity": "pii"
+    }
+  },
+  "outputs": {
+    "savings_balance": {
+      "type": "money",
+      "description": "savings balance",
+      "sensitivity": "pii"
+    }
+  },
+  "requires": [
+    "session.sign_on"
+  ],
+  "model": "gemini-3.8-flash",
+  "started_at": "2026-10-03T03:43:07.748170Z",
+  "finished_at": "2026-10-03T03:44:12.460607Z",
+  "status": "outcome",
+  "summary": "Searched for member ID {{inputs.member_id}} and received 'NO MEMBERS FOUND MATCHING SEARCH CRITERIA'.",
+  "outcome_code": "MEMBER_NOT_FOUND",
+  "outcome_text": "NO MEMBERS FOUND MATCHING SEARCH CRITERIA",
+  "steps": [
+    {
+      "index": 0,
+      "actor": "agent",
+      "tool": "click",
+      "reason": "Navigate to Member Search",
+      "target": {
+        "description": "link \"Member Search\"",
+        "frame": [
+          {
+            "name": "nav",
+            "url_pattern": null
+          }
+        ],
+        "locators": [
+          {
+            "strategy": "role",
+            "role": "link",
+            "name": "Member Search",
+            "exact": true
+          },
+          {
+            "strategy": "text",
+            "text": "Member Search",
+            "exact": true
+          },
+          {
+            "strategy": "attribute",
+            "tag": "a",
+            "attribute": "href",
+            "value": "/members/search"
+          },
+          {
+            "strategy": "css",
+            "selector": "body > table > tbody > tr:nth-of-type(3) > td > a"
+          }
+        ],
+        "robustness_note": null,
+        "sensitive": false
+      },
+      "target_label": "Member Search",
+      "value": null,
+      "option": null,
+      "key": null,
+      "checked": null,
+      "output": null,
+      "risk": "safe",
+      "verdict": "allow",
+      "approved_by": null,
+      "result": "ok",
+      "detail": null,
+      "url_after": "http://127.0.0.1:8765/app"
+    },
+    {
+      "index": 1,
+      "actor": "agent",
+      "tool": "fill",
+      "reason": "Enter member ID {{inputs.member_id}}",
+      "target": {
+        "description": "textbox in the row labelled \"Member ID:\"",
+        "frame": [
+          {
+            "name": "main",
+            "url_pattern": null
+          }
+        ],
+        "locators": [
+          {
+            "strategy": "anchor",
+            "anchor_text": "Member ID:",
+            "relation": "same_row",
+            "role": "textbox"
+          },
+          {
+            "strategy": "attribute",
+            "tag": "input",
+            "attribute": "name",
+            "value": "mid"
+          },
+          {
+            "strategy": "css",
+            "selector": "form[name=\"f1\"] > table > tbody > tr:nth-of-type(1) > td:nth-of-type(2) > input"
+          }
+        ],
+        "robustness_note": null,
+        "sensitive": false
+      },
+      "target_label": "",
+      "value": "{{inputs.member_id}}",
+      "option": null,
+      "key": null,
+      "checked": null,
+      "output": null,
+      "risk": "safe",
+      "verdict": "allow",
+      "approved_by": null,
+      "result": "ok",
+      "detail": null,
+      "url_after": "http://127.0.0.1:8765/app"
+    },
+    {
+      "index": 2,
+      "actor": "agent",
+      "tool": "click",
+      "reason": "Click Search button",
+      "target": {
+        "description": "clickable \"Search\"",
+        "frame": [
+          {
+            "name": "main",
+            "url_pattern": null
+          }
+        ],
+        "locators": [
+          {
+            "strategy": "text",
+            "text": "Search",
+            "exact": true
+          },
+          {
+            "strategy": "css",
+            "selector": "form[name=\"f1\"] > table > tbody > tr:nth-of-type(3) > td:nth-of-type(2) > span:nth-of-type(1)"
+          }
+        ],
+        "robustness_note": null,
+        "sensitive": false
+      },
+      "target_label": "Search",
+      "value": null,
+      "option": null,
+      "key": null,
+      "checked": null,
+      "output": null,
+      "risk": "safe",
+      "verdict": "allow",
+      "approved_by": null,
+      "result": "ok",
+      "detail": null,
+      "url_after": "http://127.0.0.1:8765/app"
+    }
+  ],
+  "recoveries": [],
+  "interventions": [],
+  "usage": {
+    "input_tokens": 15609,
+    "output_tokens": 851
+  }
+}

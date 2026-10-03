@@ -24,7 +24,7 @@ the UI a human operator uses.
 
 ## Status
 
-This project is being built in vertical slices. Checked items are implemented and tested.
+Checked items are implemented and tested.
 
 - [x] Project scaffold, CLI, lint/type-check/test tooling, CI
 - [x] **MockCore**, a hostile legacy target app with injectable runtime faults and a second-tenant variant
@@ -35,9 +35,9 @@ This project is being built in vertical slices. Checked items are implemented an
 - [x] Compiler (trace → artifact), including merging business outcomes learned from negative discovery runs
 - [x] Deterministic replay engine with error taxonomy, recovery, drift detection and approvals
 - [x] Human-in-the-loop handoff: control lease, intervention queue, local operator page, capture of the person's actions
-- [x] Evidence per run: redacted event log, masked screenshots, Playwright trace on failure, generated `run_report.md`
+- [x] Evidence per run: redacted event log, masked screenshots, generated `run_report.md` (raw Playwright trace only with `--debug-trace`)
 - [x] Stretch: cross-tenant reuse (tenant overlays + product-version gate)
-- [ ] Curated `/evidence/` (real discovery run + replay runs) and design write-up (`REPORT.md`)
+- [x] Curated [`/evidence/`](evidence/README.md): real Gemini discovery runs, 12 replay runs including error replays and cross-tenant, and the design write-up ([`REPORT.md`](REPORT.md))
 
 ## Demo path
 
@@ -48,6 +48,9 @@ uv run cua mockcore
 ```
 
 Terminal 2: discover a capability with the LLM, review it, then replay it without the LLM.
+The repo already ships the capability recorded in [`evidence/`](evidence/README.md)
+(`1.0.0`, then `1.1.0` with the learned outcome), so step 4 works without any API key. A new
+discovery is saved as the next free version; versions already on disk are never overwritten.
 
 ```bash
 # 1. Discovery (needs ANTHROPIC_API_KEY, or GEMINI_API_KEY with CUA_LLM_PROVIDER=gemini, in .env). Signs on with the service account from .env
@@ -58,17 +61,19 @@ uv run cua discover \
   --param member_id=12345 \
   --output "savings_balance:money:Current balance of the member's Share Savings account"
 
-# 2. Teach it a business outcome with a negative discovery run (bad input).
+# 2. Teach it a business outcome with a negative discovery run (bad input). Pass the file
+#    step 1 printed; the merged capability is saved as the next minor version.
 uv run cua discover \
   --capability member.read_savings_balance \
   --goal "Look up member 99999 and read their current savings balance" \
   --param member_id=99999 --output savings_balance:money \
-  --merge-into capabilities/mockcore/member.read_savings_balance/1.0.0.yaml
+  --merge-into capabilities/mockcore/member.read_savings_balance/<version from step 1>.yaml
 
 # 3. Review (and optionally approve) the capability.
 uv run cua review capabilities/mockcore/member.read_savings_balance/1.1.0.yaml
 
-# 4. Deterministic replay: no model in the loop. Prints the RunResult JSON.
+# 4. Deterministic replay: no model in the loop. Uses the newest version; pin one with
+#    mockcore/member.read_savings_balance@1.1.0. Prints the RunResult JSON.
 uv run cua replay mockcore/member.read_savings_balance --input member_id=34567   # success
 uv run cua replay mockcore/member.read_savings_balance --input member_id=99999   # business outcome
 uv run cua replay mockcore/member.read_savings_balance --input member_id=55555   # PERMISSION_DENIED
@@ -79,7 +84,7 @@ writes its evidence to `runs/<run-id>/`:
 - `events.jsonl`: the redacted event log
 - `screenshots/`: masked screenshots
 - `result.json` for replays, or `trace.json` for discovery runs
-- `trace.zip`: the Playwright trace, kept when a run fails
+- `trace.UNREDACTED.zip`: only with `--debug-trace`, on a failed run. A raw Playwright trace that holds typed credentials and unmasked pages, for local debugging only; never shared or committed
 
 To exercise runtime conditions, restart MockCore with faults, e.g.
 `uv run cua mockcore --faults maintenance,modal`.
@@ -240,8 +245,10 @@ uv run cua replay mockcore/member.read_savings_balance --input member_id=12345 -
 ```
 
 Without an overlay, the base capability still succeeds on the second tenant via fallback
-locators, and the result lists drift warnings. With the overlay it runs with no drift, and
-the result records `tenant` and the detected `app_version`.
+locators, and the result lists drift warnings. With the overlay
+(`tenants/harbor_valley_fcu/overrides/member.read_savings_balance.yaml`) it runs with no drift,
+and the result records `tenant` and the detected `app_version`. Both runs are in
+`evidence/replay/10-*` and `11-*`.
 
 ## Repository layout
 
@@ -255,7 +262,7 @@ src/cua/            the automation system
   replay/           deterministic replay, locator resolution, state classification, recovery
   policy/           allowlist, risk classification, redaction
   handoff/          control lease, intervention queue, operator surface
-  evidence/         structured logs, screenshots, traces, run reports
+  evidence/         structured logs, masked screenshots, run reports
   cli.py            single CLI entry point (`cua ...`)
 src/mockcore/       the fictional legacy target app
 apps/               app profiles (one per vendor product)
@@ -272,4 +279,4 @@ tests/              unit, HTTP-level and browser tests
 |---|---|
 | `/README.md` | This file: setup, configuration and the demo path |
 | `/REPORT.md` | Design write-up: Architecture · Artifact schema · Determinism & error handling · Heterogeneity & multi-tenant · Escalation & handoff · Safety · Cuts |
-| `/evidence/` | Example capability artifact, plus logs from a real discovery run and from replay runs (including error cases) |
+| `/evidence/` | Example capability artifact and tenant overlay, logs from two real LLM discovery runs, and 12 replay runs including error replays ([index](evidence/README.md)) |

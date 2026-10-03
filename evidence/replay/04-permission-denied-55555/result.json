@@ -1,0 +1,23 @@
+{
+  "run_id": "run-20261003T034634-f5dd",
+  "capability": "mockcore/member.read_savings_balance@1.1.0",
+  "content_hash": "sha256:e68a02aabedfb5bc8efe00fc675018e079028fabab1dfdbc2459bef4f0df174e",
+  "tenant": null,
+  "app_version": "4.2.1",
+  "status": "business_outcome",
+  "outputs": {},
+  "outcome": {
+    "code": "PERMISSION_DENIED",
+    "description": "The signed-on user lacks privileges for this record",
+    "retryable": false,
+    "step_id": "open_member_id_link",
+    "source": "app_profile"
+  },
+  "error": null,
+  "recoveries": [],
+  "drift_warnings": [],
+  "interventions": [],
+  "started_at": "2026-10-03T03:46:34.656598Z",
+  "finished_at": "2026-10-03T03:46:37.154372Z",
+  "evidence_dir": "runs/run-20261003T034634-f5dd"
+}

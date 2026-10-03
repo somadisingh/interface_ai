@@ -1,0 +1,29 @@
+{
+  "run_id": "run-20261003T034710-4469",
+  "capability": "mockcore/member.read_savings_balance@1.1.0",
+  "content_hash": "sha256:e68a02aabedfb5bc8efe00fc675018e079028fabab1dfdbc2459bef4f0df174e",
+  "tenant": null,
+  "app_version": "4.2.1",
+  "status": "success",
+  "outputs": {
+    "savings_balance": {
+      "amount": "*****33",
+      "currency": "USD"
+    }
+  },
+  "outcome": null,
+  "error": null,
+  "recoveries": [
+    {
+      "step_id": "open_member_id_link",
+      "state": "session_expired",
+      "action": "run session.sign_on; then restart_capability",
+      "attempt": 1
+    }
+  ],
+  "drift_warnings": [],
+  "interventions": [],
+  "started_at": "2026-10-03T03:47:11.317329Z",
+  "finished_at": "2026-10-03T03:47:16.433367Z",
+  "evidence_dir": "runs/run-20261003T034710-4469"
+}

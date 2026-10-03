@@ -1,0 +1,178 @@
+schema_version: '1.0'
+id: member.read_savings_balance
+version: 1.0.0
+summary: Look up member <member_id> and read their current savings balance
+description: 'Discovered from the goal: Look up member <member_id> and read their current savings balance'
+app:
+  product: mockcore
+  product_versions: '>=4.0,<5.0'
+  surface: web
+requires:
+- session.sign_on
+inputs:
+  member_id:
+    type: string
+    description: '''member_id'' parameter of the discovered goal'
+    required: true
+    sensitivity: pii
+outputs:
+  savings_balance:
+    type: money
+    description: Current balance of the member's Share Savings account
+    sensitivity: pii
+outcomes: {}
+targets:
+  member_search_link:
+    description: link "Member Search"
+    frame:
+    - name: nav
+    locators:
+    - strategy: role
+      role: link
+      name: Member Search
+      exact: true
+    - strategy: text
+      text: Member Search
+      exact: true
+    - strategy: attribute
+      tag: a
+      attribute: href
+      value: /members/search
+    - strategy: css
+      selector: body > table > tbody > tr:nth-of-type(3) > td > a
+    sensitive: false
+  member_id_field:
+    description: textbox in the row labelled "Member ID:"
+    frame:
+    - name: main
+    locators:
+    - strategy: anchor
+      anchor_text: 'Member ID:'
+      relation: same_row
+      role: textbox
+    - strategy: attribute
+      tag: input
+      attribute: name
+      value: mid
+    - strategy: css
+      selector: form[name="f1"] > table > tbody > tr:nth-of-type(1) > td:nth-of-type(2) > input
+    sensitive: false
+  search_button:
+    description: clickable "Search"
+    frame:
+    - name: main
+    locators:
+    - strategy: text
+      text: Search
+      exact: true
+    - strategy: css
+      selector: form[name="f1"] > table > tbody > tr:nth-of-type(3) > td:nth-of-type(2) > span:nth-of-type(1)
+    sensitive: false
+  member_id_link:
+    description: link "{{inputs.member_id}}"
+    frame:
+    - name: main
+    locators:
+    - strategy: role
+      role: link
+      name: '{{inputs.member_id}}'
+      exact: true
+    - strategy: anchor
+      anchor_text: SAMPLE, JANE Q
+      relation: same_row
+      role: link
+    - strategy: table_cell
+      row_text: '{{inputs.member_id}}'
+      column_header: 'Member #'
+    - strategy: text
+      text: '{{inputs.member_id}}'
+      exact: true
+    - strategy: css
+      selector: body > table > tbody > tr > td > table > tbody > tr:nth-of-type(2) > td:nth-of-type(1)
+        > a
+    sensitive: false
+  current_balance_value:
+    description: '"Current Balance" value in the row for "S00"'
+    frame:
+    - name: main
+    locators:
+    - strategy: table_cell
+      row_text: S00
+      column_header: Current Balance
+    - strategy: css
+      selector: body > table > tbody > tr > td > table:nth-of-type(2) > tbody > tr:nth-of-type(2) > td:nth-of-type(4)
+    sensitive: false
+steps:
+- id: open_member_search_link
+  intent: Click Member Search to look up member {{inputs.member_id}}
+  action:
+    type: click
+    target: member_search_link
+  risk: safe
+  auto_approve_on_replay: false
+  expect:
+  - kind: visible
+    target: member_id_field
+  outcomes: []
+  timeout_ms: 10000
+- id: enter_member_id_field
+  intent: Enter member ID {{inputs.member_id}} in Member ID field
+  action:
+    type: fill
+    target: member_id_field
+    value: '{{inputs.member_id}}'
+  risk: safe
+  auto_approve_on_replay: false
+  expect: []
+  outcomes: []
+  timeout_ms: 10000
+- id: open_search_button
+  intent: Click Search button to find member {{inputs.member_id}}
+  action:
+    type: click
+    target: search_button
+  risk: safe
+  auto_approve_on_replay: false
+  expect:
+  - kind: visible
+    target: member_id_link
+  outcomes: []
+  timeout_ms: 10000
+- id: open_member_id_link
+  intent: Click member link {{inputs.member_id}} to view details
+  action:
+    type: click
+    target: member_id_link
+  risk: safe
+  auto_approve_on_replay: false
+  expect:
+  - kind: visible
+    target: current_balance_value
+  outcomes: []
+  timeout_ms: 10000
+- id: read_current_balance_value
+  intent: Extract current balance of Share Savings account
+  action:
+    type: extract
+    target: current_balance_value
+    into: savings_balance
+    parse: money
+  risk: safe
+  auto_approve_on_replay: false
+  expect: []
+  outcomes: []
+  timeout_ms: 10000
+success:
+- kind: output
+  name: savings_balance
+recovery:
+  max_recoveries_per_step: 2
+  max_recoveries_total: 5
+review:
+  status: draft
+provenance:
+  source: discovery
+  recorded_from_run: disc-20261003T033622-82ef
+  recorded_at: '2026-10-03T03:39:05.822585Z'
+  model: gemini-3.8-flash
+  content_hash: sha256:7568687bc5b7821b8cad1c982ea06c959ddb52f5197173d26444aa7345959342

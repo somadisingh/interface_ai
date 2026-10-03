@@ -1,0 +1,20 @@
+# Tenant overlay for the discovered capability (mockcore/member.read_savings_balance).
+# Written after a replay on this tenant succeeded only through fallback locators and
+# reported drift on four targets. Locators listed here are tried first; the recorded
+# ones stay behind them as fallbacks.
+schema_version: "1.0"
+tenant: harbor_valley_fcu
+capability: member.read_savings_balance
+applies_to: ">=1.0.0,<2.0.0"
+reason: >-
+  Harbor Valley runs MockCore 4.3 with its own wording: a "Find Member" menu entry, an
+  "Account Number:" label, a "Find" button and a "Balance" column.
+targets:
+  member_search_link:
+    locators: [{strategy: role, role: link, name: Find Member, exact: true}]
+  member_id_field:
+    locators: [{strategy: anchor, anchor_text: "Account Number:", relation: same_row, role: textbox}]
+  search_button:
+    locators: [{strategy: text, text: Find, exact: true}]
+  current_balance_value:
+    locators: [{strategy: table_cell, row_text: S00, column_header: Balance}]

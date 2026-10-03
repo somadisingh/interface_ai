@@ -1,0 +1,22 @@
+{
+  "run_id": "run-20261003T034902-a562",
+  "capability": "mockcore/member.read_savings_balance@1.1.0",
+  "content_hash": "sha256:d6b979ee1a13feff199cb5a7e93a7d085154cd2bd92d0fbf3c0dc0f32d9901f3",
+  "tenant": "harbor_valley_fcu",
+  "app_version": "4.3.0",
+  "status": "success",
+  "outputs": {
+    "savings_balance": {
+      "amount": "*****33",
+      "currency": "USD"
+    }
+  },
+  "outcome": null,
+  "error": null,
+  "recoveries": [],
+  "drift_warnings": [],
+  "interventions": [],
+  "started_at": "2026-10-03T03:49:02.727105Z",
+  "finished_at": "2026-10-03T03:49:05.756440Z",
+  "evidence_dir": "runs/run-20261003T034902-a562"
+}
