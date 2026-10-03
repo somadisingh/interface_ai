@@ -23,7 +23,9 @@ from typing import Any
 
 SECRET = "[SECRET]"
 _SECRET_KEY = re.compile(
-    r"(pass(word|wd)?|pwd|secret|token|api[_-]?key|authorization|cookie|session)", re.I
+    # "token" but not "..._tokens" (model usage counts such as input_tokens are not credentials)
+    r"(pass(word|wd)?|pwd|secret|token(?!s\b)|api[_-]?key|authorization|cookie|session)",
+    re.I,
 )
 _SSN = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
 _CARD = re.compile(r"\b(?:\d[ -]?){12,18}\d\b")

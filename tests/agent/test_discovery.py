@@ -146,6 +146,9 @@ def test_discover_compile_replay_and_learn_an_outcome(base: str, tmp_path: Path)
     assert first.expect and first.expect[0].model_dump()["target"] == "member_id_field"
     assert cap.targets["member_id_field"].locators[0].strategy == "anchor"
     assert "{{inputs.member_id}}" in cap.targets["member_id_link"].model_dump_json()
+    # the clicked result row's other cells are record data: never baked into the artifact
+    assert "anchor" not in [loc.strategy for loc in cap.targets["member_id_link"].locators]
+    assert "JANE" not in path.read_text()
 
     # 3. deterministic replay with other inputs
     ok = replay(base, tmp_path / "runs", cap, "34567")

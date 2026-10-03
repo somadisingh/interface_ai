@@ -86,7 +86,18 @@ class Templater:
     def target(self, spec: TargetSpec) -> TargetSpec:
         data = spec.model_dump(mode="json")
         data["description"] = self.text(data["description"])
-        data["locators"] = [self._walk(loc) for loc in data["locators"]]
+        locators = [self._walk(loc) for loc in data["locators"]]
+        if any("{{inputs." in str(loc) for loc in locators):
+            # The element is picked out by an input value (e.g. the member-number link in a
+            # result row), so the rest of its row is that record's data, not a label. An
+            # anchor on it would bake one customer's details into a reusable artifact and
+            # would only ever match that customer.
+            locators = [
+                loc
+                for loc in locators
+                if loc["strategy"] != "anchor" or "{{inputs." in loc["anchor_text"]
+            ]
+        data["locators"] = locators
         return TargetSpec.model_validate(data)
 
     def _walk(self, obj: Any) -> Any:

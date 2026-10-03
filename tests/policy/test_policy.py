@@ -123,11 +123,15 @@ def test_redacts_nested_structures_and_credential_keys() -> None:
     event = {
         "password": "anything",
         "api_key": "k",
+        "access_token": "t",
+        "usage": {"input_tokens": 1200, "output_tokens": 80},
         "detail": {"name": "SAMPLE, JANE Q"},
         "steps": ["ok", "ssn 900-00-9012"],
     }
     out = r.value(event)
     assert out["password"] == "[SECRET]" and out["api_key"] == "[SECRET]"
+    assert out["access_token"] == "[SECRET]"
+    assert out["usage"] == {"input_tokens": 1200, "output_tokens": 80}  # counts, not secrets
     assert out["detail"]["name"] == mask_value("SAMPLE, JANE Q")
     assert "900-00-9012" not in out["steps"][1]
 
