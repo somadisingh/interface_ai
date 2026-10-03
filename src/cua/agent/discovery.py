@@ -433,6 +433,9 @@ class DiscoveryAgent:
         self.surface.screenshot(shot_path, mask_text_patterns=self.model_redactor.dom_patterns())
         self.log.screenshot(self.surface, f"turn{len(self._steps):02d}")
         image = base64.b64encode(shot_path.read_bytes()).decode()
+        # The model's frame is unmasked except for secrets (it has to read the page), so it is
+        # never kept on disk: only the masked evidence screenshot above is.
+        shot_path.unlink(missing_ok=True)
         return [
             {"type": "text", "text": text},
             {

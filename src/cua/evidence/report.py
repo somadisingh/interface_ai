@@ -154,11 +154,11 @@ def build_report(run_dir: Path) -> Path:
     if not events:
         raise ValueError(f"no events in {run_dir}")
     start = datetime.fromisoformat(events[0]["ts"])
-    first = events[0]
+    first = next((e for e in events if e["type"] == "run_started"), events[0])
     finished = next((e for e in reversed(events) if e["type"] == "run_finished"), {})
     mode = first.get("mode", "replay")
 
-    lines = [f"# Run report — `{run_dir.name}`", ""]
+    lines = [f"# Run report — `{first.get('run_id', run_dir.name)}`", ""]
     rows = [("Mode", mode)]
     if mode == "discovery":
         rows += [
@@ -213,8 +213,11 @@ def build_report(run_dir: Path) -> Path:
         evidence.append("[`trace.json`](trace.json)")
     if (run_dir / "capability.yaml").exists():
         evidence.append("[`capability.yaml`](capability.yaml)")
-    if (run_dir / "trace.zip").exists():
-        evidence.append("`trace.zip` (open with `uv run playwright show-trace trace.zip`)")
+    if (run_dir / "trace.UNREDACTED.zip").exists():
+        evidence.append(
+            "`trace.UNREDACTED.zip` (raw Playwright trace, **contains credentials and unmasked "
+            "data**: local debugging only)"
+        )
     rows.append(("Evidence", " · ".join(evidence)))
     lines += ["| | |", "|---|---|", *[f"| {k} | {_cell(v, 400)} |" for k, v in rows], ""]
 

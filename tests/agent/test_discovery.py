@@ -179,6 +179,8 @@ def test_discovery_log_is_redacted_and_complete(base: str, tmp_path: Path) -> No
     types = [json.loads(line)["type"] for line in text.splitlines()]
     assert types.count("agent_decision") == len(HAPPY)
     assert (run_dir / "trace.json").exists()
+    assert not (run_dir / "model-view.png").exists()  # the model's unmasked frame is not kept
+    DiscoveryTrace.model_validate_json((run_dir / "trace.json").read_text())  # reloadable
 
 
 def test_irreversible_action_in_discovery_needs_approval(base: str, tmp_path: Path) -> None:

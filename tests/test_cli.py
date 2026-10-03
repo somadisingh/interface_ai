@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from typer.testing import CliRunner
 
 from cua import __version__
@@ -41,3 +43,12 @@ def test_committed_json_schemas_match_models(tmp_path) -> None:  # type: ignore[
         assert committed.read_text() == generated.read_text(), (
             f"{committed} is stale: run `uv run cua schema-export`"
         )
+
+
+def test_merged_versions_never_overwrite_existing_files(tmp_path: Path) -> None:
+    from cua.cli import _free_version
+
+    for v in ("1.0.0", "1.1.0", "1.2.0"):
+        (tmp_path / f"{v}.yaml").write_text("x")
+    assert _free_version(tmp_path, "1.1.0") == "1.3.0"  # merged from 1.0.0 after 1.2.0 exists
+    assert _free_version(tmp_path, "2.0.0") == "2.0.0"

@@ -16,8 +16,10 @@ build/
 
 # Raw run output (curated copies live in /evidence)
 runs/
+# Raw Playwright traces hold credentials and unmasked pages: never committed, evidence included.
+trace.zip
 *.trace.zip
-!evidence/**/*.trace.zip
+trace.UNREDACTED.zip
 
 # OS / editor
 .DS_Store

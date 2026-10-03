@@ -124,6 +124,22 @@ def _human_channel(kind: str) -> HumanChannel | Literal["operator"]:
     raise typer.BadParameter("--human must be 'operator', 'terminal' or 'none'")
 
 
+def _free_version(folder: Path, version: str) -> str:
+    """``version``, or the next minor version whose file does not exist yet: merging into an
+    older version must never overwrite a newer one already on disk."""
+    major, minor, _ = (int(x) for x in version.split("."))
+    while (folder / f"{major}.{minor}.0.yaml").exists():
+        minor += 1
+    return f"{major}.{minor}.0"
+
+
+def _warn_raw_trace(run_dir: Path) -> None:
+    from cua.runtime import RAW_TRACE_FILE, RAW_TRACE_WARNING
+
+    if (run_dir / RAW_TRACE_FILE).exists():
+        typer.echo(f"WARNING: {run_dir / RAW_TRACE_FILE}: {RAW_TRACE_WARNING}", err=True)
+
+
 def _announce(url: str | None) -> None:
     if url:
         typer.echo(
@@ -155,6 +171,11 @@ def discover(
         "operator", help="Human channel: operator (page + visible browser) | terminal | none."
     ),
     operator_port: int = typer.Option(8766, help="Port for the local operator page."),
+    debug_trace: bool = typer.Option(
+        False,
+        help="Keep a raw Playwright trace of a failed run (UNREDACTED: holds credentials and "
+        "page data; local debugging only).",
+    ),
     merge_into: Path | None = typer.Option(
         None, help="Existing capability YAML: merge this run's business outcome into it."
     ),
@@ -197,6 +218,7 @@ def discover(
         mode="discovery",
         headless=not (headed or channel == "operator"),
         operator_port=operator_port,
+        debug_trace=debug_trace,
     ) as rt:
         _announce(rt.operator_url)
         limits = rt.policy.policy.limits
@@ -227,11 +249,15 @@ def discover(
             rt.keep_trace = True
         run_dir, registry, profile = rt.log.run_dir, rt.registry, rt.profile
 
+    _warn_raw_trace(run_dir)
     typer.echo(f"discovery {trace.status}: {trace.summary}")
     typer.echo(f"  steps: {len(trace.steps)}  tokens: {trace.usage}  evidence: {run_dir}")
     target = None
     if merge_into is not None and trace.status == "outcome":
         cap = merge_outcome(load_capability(merge_into), trace)
+        cap = cap.model_copy(
+            update={"version": _free_version(registry.root / product / cap.id, cap.version)}
+        )
         target = registry.root / product / cap.id / f"{cap.version}.yaml"
     elif trace.status == "succeeded":
         cap = compile_trace(
@@ -241,6 +267,8 @@ def discover(
         )
         target = registry.root / product / cap.id / f"{cap.version}.yaml"
     if target is not None:
+        if target.exists():  # versions are immutable once written
+            raise typer.BadParameter(f"{target} already exists; refusing to overwrite it")
         save_capability(cap, target)
         save_capability(cap, run_dir / "capability.yaml")
         typer.echo(f"  capability: {target}  (draft — review with `cua review {target}`)")
@@ -263,6 +291,11 @@ def replay(
         "none", help="Human channel: operator (page + visible browser) | terminal | none."
     ),
     operator_port: int = typer.Option(8766, help="Port for the local operator page."),
+    debug_trace: bool = typer.Option(
+        False,
+        help="Keep a raw Playwright trace of a failed run (UNREDACTED: holds credentials and "
+        "page data; local debugging only).",
+    ),
 ) -> None:
     """Replay a capability deterministically (no model). Prints the RunResult as JSON.
 
@@ -294,11 +327,14 @@ def replay(
         headless=not (headed or channel == "operator"),
         escalate=escalate,
         operator_port=operator_port,
+        debug_trace=debug_trace,
     ) as rt:
         _announce(rt.operator_url)
         result = rt.engine.run(cap, _pairs(input, "--input"))
         if result.status in ("failed", "escalated"):
             rt.keep_trace = True
+        run_dir = rt.log.run_dir
+    _warn_raw_trace(run_dir)
     typer.echo(result.model_dump_json(indent=2, exclude_none=True))
     codes = {"success": 0, "business_outcome": 3, "escalated": 2, "failed": 1}
     raise typer.Exit(code=codes[result.status])

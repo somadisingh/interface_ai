@@ -160,6 +160,7 @@ def test_contract_violation_fails_before_touching_the_ui(base: str, tmp_path: Pa
         ("maintenance", "maintenance_notice"),
         ("modal", "password_expiry_notice"),
         ("session_timeout=3", "session_expired"),
+        ("maintenance,modal", "maintenance_notice"),  # overlay on top of the interstitial
     ],
 )
 def test_known_interruptions_are_recovered(

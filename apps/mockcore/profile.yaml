@@ -33,21 +33,23 @@ targets:
       The overlay's OK is a span with an onclick handler, so it has no button role; exact
       visible text is the most stable handle.
 
+# States are checked in this order and the first match is handled, so the order is the
+# priority: an overlay that blocks clicks must come before any page it can sit on top of.
 states:
-  maintenance_notice:
-    description: Scheduled-maintenance interstitial shown before main pages
-    kind: interstitial
-    detect: {kind: text, pattern: SCHEDULED MAINTENANCE NOTICE, frame: [{name: main}]}
-    handler:
-      actions: [{type: click, target: maintenance_ack}]
-      then: resume
-
   password_expiry_notice:
     description: Password-expiry overlay that blocks clicks until dismissed
     kind: interstitial
     detect: {kind: text, pattern: SECURITY NOTICE, frame: [{name: main}]}
     handler:
       actions: [{type: click, target: security_notice_ok}]
+      then: resume
+
+  maintenance_notice:
+    description: Scheduled-maintenance interstitial shown before main pages
+    kind: interstitial
+    detect: {kind: text, pattern: SCHEDULED MAINTENANCE NOTICE, frame: [{name: main}]}
+    handler:
+      actions: [{type: click, target: maintenance_ack}]
       then: resume
 
   session_expired:

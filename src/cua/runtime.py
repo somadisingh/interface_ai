@@ -24,6 +24,12 @@ from cua.schema import AppProfile, load_app_profile
 from cua.schema.tenancy import Tenant, apply_profile_overrides
 from cua.surface.web import WebSurface
 
+RAW_TRACE_FILE = "trace.UNREDACTED.zip"
+RAW_TRACE_WARNING = (
+    "Playwright trace with raw network traffic and DOM snapshots: it contains typed "
+    "credentials and unmasked page data. Local debugging only; never share or commit it."
+)
+
 
 @dataclass
 class Runtime:
@@ -57,6 +63,7 @@ def open_runtime(
     operator_port: int = 8766,
     simulate_operator: Callable[[WebSurface], None] | None = None,
     tenant: str | None = None,
+    debug_trace: bool = False,
 ) -> Iterator[Runtime]:
     run_id = run_id or new_run_id("disc" if mode == "discovery" else "run")
     redactor = Redactor()
@@ -85,7 +92,7 @@ def open_runtime(
     control = SessionControl(on_change=on_transfer)
     server: OperatorServer | None = None
     with WebSurface.launch(
-        base_url, headless=headless, request_guard=policy.request_guard, trace=True
+        base_url, headless=headless, request_guard=policy.request_guard, trace=debug_trace
     ) as surface:
         surface.control = control
         channel: HumanChannel
@@ -128,7 +135,12 @@ def open_runtime(
         try:
             yield runtime
         finally:
-            surface.stop_trace(log.run_dir / "trace.zip" if runtime.keep_trace else None)
+            if debug_trace:
+                saved = surface.stop_trace(
+                    log.run_dir / RAW_TRACE_FILE if runtime.keep_trace else None
+                )
+                if saved is not None:
+                    log.emit("raw_trace_saved", file=RAW_TRACE_FILE, warning=RAW_TRACE_WARNING)
             if server is not None:
                 server.stop()
             try:
