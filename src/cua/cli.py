@@ -230,7 +230,7 @@ def discover(
     typer.echo(f"discovery {trace.status}: {trace.summary}")
     typer.echo(f"  steps: {len(trace.steps)}  tokens: {trace.usage}  evidence: {run_dir}")
     target = None
-    if merge_into is not None:
+    if merge_into is not None and trace.status == "outcome":
         cap = merge_outcome(load_capability(merge_into), trace)
         target = registry.root / product / cap.id / f"{cap.version}.yaml"
     elif trace.status == "succeeded":

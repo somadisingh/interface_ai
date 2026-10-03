@@ -158,7 +158,12 @@ class DiscoveryAgent:
                 content = [*pending, *self._observation_blocks(obs)]
                 pending = []
                 messages.append({"role": "user", "content": content})
-                reply = self.llm.complete(system, _compact(messages), TOOLS)
+                try:
+                    reply = self.llm.complete(system, _compact(messages), TOOLS)
+                except Exception as exc:  # provider outage, quota, bad key: stop with evidence
+                    detail = f"{type(exc).__name__}: {exc}"[:500]
+                    self.log.emit("llm_error", model=self.llm.model, error=detail)
+                    return self._end("aborted", f"model call failed after retries ({detail})")
                 messages.append({"role": "assistant", "content": reply.content})
                 for k, v in reply.usage.items():
                     self._usage[k] = self._usage.get(k, 0) + v

@@ -47,7 +47,7 @@ class AnthropicClient:
         # Reads ANTHROPIC_API_KEY. Keys that are not scoped to a workspace must name one.
         workspace = os.environ.get("ANTHROPIC_WORKSPACE_ID")
         headers = {"anthropic-workspace-id": workspace} if workspace else None
-        self._client = anthropic.Anthropic(default_headers=headers)
+        self._client = anthropic.Anthropic(default_headers=headers, max_retries=6)
 
     def complete(
         self, system: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
@@ -79,6 +79,7 @@ class AnthropicClient:
 
 
 DEFAULT_GEMINI_MODEL = "gemini-3.8-flash"
+RETRYABLE_STATUS = (408, 429, 500, 502, 503, 504)
 
 
 class GeminiClient:
@@ -92,10 +93,20 @@ class GeminiClient:
 
     def __init__(self, model: str | None = None, max_tokens: int = 8192) -> None:
         from google import genai
+        from google.genai import types
 
         self.model = model or _env_model(gemini=True) or DEFAULT_GEMINI_MODEL
         self.max_tokens = max_tokens  # thinking tokens count against this on Gemini 3
-        self._client = genai.Client()  # reads GEMINI_API_KEY (or GOOGLE_API_KEY)
+        # Overload (503) and rate limits (429) are common and usually pass within a minute:
+        # back off exponentially (2s, 4s, ... capped at 60s) for up to ~4 minutes.
+        retry = types.HttpRetryOptions(
+            attempts=8,
+            initial_delay=2.0,
+            max_delay=60.0,
+            http_status_codes=list(RETRYABLE_STATUS),
+        )
+        # Reads GEMINI_API_KEY (or GOOGLE_API_KEY).
+        self._client = genai.Client(http_options=types.HttpOptions(retry_options=retry))
         self._ids = itertools.count(1)
 
     def complete(

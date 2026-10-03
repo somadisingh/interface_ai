@@ -193,3 +193,53 @@ def test_discovery_runs_end_to_end_through_the_adapter(
     assert trace.model == "gemini-test" and fake.requests == len(HAPPY)
     assert trace.usage["input_tokens"] == 100 * len(HAPPY)
     assert compile_trace(trace).provenance.model == "gemini-test"
+
+
+def test_client_retries_transient_overload(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    retry = GeminiClient("gemini-test")._client._api_client._http_options.retry_options
+    assert retry is not None and retry.attempts and retry.attempts >= 5
+    assert 503 in (retry.http_status_codes or []) and 429 in (retry.http_status_codes or [])
+
+
+class Overloaded:
+    model = "gemini-test"
+
+    def complete(self, system: str, messages: Any, tools: Any) -> Any:
+        raise RuntimeError("503 UNAVAILABLE. This model is currently experiencing high demand.")
+
+
+def test_model_outage_ends_discovery_cleanly_with_evidence(
+    live_mockcore: LiveServer, mockcore_url: str, tmp_path: Path
+) -> None:
+    human = ScriptedChannel()
+    with open_runtime(
+        mockcore_url,
+        human=human,
+        mode="discovery",
+        root=ROOT,
+        runs_dir=tmp_path,
+        secrets_source=SECRETS,
+    ) as rt:
+        trace = DiscoveryAgent(
+            rt.surface,
+            Overloaded(),
+            engine=rt.engine,
+            policy=rt.policy,
+            human=human,
+            log=rt.log,
+            model_redactor=Redactor(),
+            max_steps=5,
+        ).run(
+            DiscoverySpec(
+                capability_id="member.read_savings_balance",
+                product="mockcore",
+                goal="Look up member 12345",
+                params={"member_id": "12345"},
+                outputs=OUTPUTS,
+                requires=["session.sign_on"],
+            )
+        )
+        log = (rt.log.run_dir / "events.jsonl").read_text()
+    assert trace.status == "aborted" and "503 UNAVAILABLE" in trace.summary
+    assert '"llm_error"' in log
