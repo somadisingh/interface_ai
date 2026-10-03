@@ -83,9 +83,6 @@ targets:
     - strategy: text
       text: '{{inputs.member_id}}'
       exact: true
-    - strategy: css
-      selector: body > table > tbody > tr > td > table > tbody > tr:nth-of-type(2) > td:nth-of-type(1)
-        > a
     sensitive: false
   current_balance_value:
     description: '"Current Balance" value in the row for "S00"'
@@ -95,12 +92,10 @@ targets:
     - strategy: table_cell
       row_text: S00
       column_header: Current Balance
-    - strategy: css
-      selector: body > table > tbody > tr > td > table:nth-of-type(2) > tbody > tr:nth-of-type(2) > td:nth-of-type(4)
     sensitive: false
 steps:
 - id: open_member_search_link
-  intent: Click Member Search to look up member {{inputs.member_id}}
+  intent: Click Member Search to find member {{inputs.member_id}}.
   action:
     type: click
     target: member_search_link
@@ -112,7 +107,7 @@ steps:
   outcomes: []
   timeout_ms: 10000
 - id: enter_member_id_field
-  intent: Enter member ID {{inputs.member_id}} in Member ID field
+  intent: Enter member ID {{inputs.member_id}} in the Member ID field.
   action:
     type: fill
     target: member_id_field
@@ -123,7 +118,7 @@ steps:
   outcomes: []
   timeout_ms: 10000
 - id: open_search_button
-  intent: Click Search button to find member {{inputs.member_id}}
+  intent: Click Search button to find the member.
   action:
     type: click
     target: search_button
@@ -135,7 +130,7 @@ steps:
   outcomes: []
   timeout_ms: 10000
 - id: open_member_id_link
-  intent: Click member link {{inputs.member_id}} to view details
+  intent: Click on the member ID to view details.
   action:
     type: click
     target: member_id_link
@@ -147,7 +142,7 @@ steps:
   outcomes: []
   timeout_ms: 10000
 - id: read_current_balance_value
-  intent: Extract current balance of Share Savings account
+  intent: Extract the current balance of the member's Share Savings account.
   action:
     type: extract
     target: current_balance_value
@@ -168,7 +163,8 @@ review:
   status: draft
 provenance:
   source: discovery
-  recorded_from_run: disc-20261003T033622-82ef
-  recorded_at: '2026-10-03T03:39:05.822585Z'
-  model: gemini-3.8-flash
-  content_hash: sha256:5f14b90b3b51db882c2f52fbb3f64d5fe5ab47a438968d29e8ffb4431b86f114
+  recorded_from_run: disc-20261003T151340-72e6
+  recorded_at: '2026-10-03T15:13:53.525451Z'
+  model: gemini-3.5-flash
+  merged_runs: []
+  content_hash: sha256:85e27099728de327c03523d98ff908def5554c70f7873067093a31207009eec7

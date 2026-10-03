@@ -1,7 +1,7 @@
 {
-  "run_id": "run-20261003T034727-3f85",
+  "run_id": "run-20261003T151847-582c",
   "capability": "mockcore/member.read_savings_balance@1.1.0",
-  "content_hash": "sha256:e68a02aabedfb5bc8efe00fc675018e079028fabab1dfdbc2459bef4f0df174e",
+  "content_hash": "sha256:22e1679fe00d0bc13cff00020e282ab80526b44c1fbce6d42ede5585d6e74afb",
   "tenant": null,
   "app_version": "4.2.1",
   "status": "failed",
@@ -12,7 +12,7 @@
     "message": "Generic application error page",
     "step_id": "open_member_id_link",
     "expected": null,
-    "observed": "[nav] MAIN MENU Home Member Search Teller Transactions Loan Servicing Reports User: SVC-CUA Sign Off | [main] First Example Credit Union | ERROR CORE-E1203 UNEXPECTED APPLICATION ERROR. The requested function could not be completed. Reference ID: F1F66F0C Please contact the help desk and provide the reference ID. MockCore 4.2.1 (build 2211) Copyright (c) Fictional Core Systems Inc. Authorized use only.",
+    "observed": "[nav] MAIN MENU Home Member Search Teller Transactions Loan Servicing Reports User: [SECRET] Sign Off | [main] First Example Credit Union | ERROR CORE-E1203 UNEXPECTED APPLICATION ERROR. The requested function could not be completed. Reference ID: 53B96D28 Please contact the help desk and provide the reference ID. MockCore 4.2.1 (build 2211) Copyright (c) Fictional Core Systems Inc. Authorized use only.",
     "evidence": [
       "screenshots/033-open_member_id_link-failure.png"
     ]
@@ -20,7 +20,7 @@
   "recoveries": [],
   "drift_warnings": [],
   "interventions": [],
-  "started_at": "2026-10-03T03:47:27.801178Z",
-  "finished_at": "2026-10-03T03:47:30.610868Z",
-  "evidence_dir": "runs/run-20261003T034727-3f85"
+  "started_at": "2026-10-03T15:18:48.428980Z",
+  "finished_at": "2026-10-03T15:18:50.696012Z",
+  "evidence_dir": "runs/run-20261003T151847-582c"
 }

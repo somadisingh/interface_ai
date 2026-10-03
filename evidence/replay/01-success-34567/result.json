@@ -1,7 +1,7 @@
 {
-  "run_id": "run-20261003T034613-88ce",
+  "run_id": "run-20261003T151758-6ecc",
   "capability": "mockcore/member.read_savings_balance@1.1.0",
-  "content_hash": "sha256:e68a02aabedfb5bc8efe00fc675018e079028fabab1dfdbc2459bef4f0df174e",
+  "content_hash": "sha256:22e1679fe00d0bc13cff00020e282ab80526b44c1fbce6d42ede5585d6e74afb",
   "tenant": null,
   "app_version": "4.2.1",
   "status": "success",
@@ -16,7 +16,7 @@
   "recoveries": [],
   "drift_warnings": [],
   "interventions": [],
-  "started_at": "2026-10-03T03:46:13.983463Z",
-  "finished_at": "2026-10-03T03:46:16.779583Z",
-  "evidence_dir": "runs/run-20261003T034613-88ce"
+  "started_at": "2026-10-03T15:17:58.894462Z",
+  "finished_at": "2026-10-03T15:18:01.214626Z",
+  "evidence_dir": "runs/run-20261003T151758-6ecc"
 }

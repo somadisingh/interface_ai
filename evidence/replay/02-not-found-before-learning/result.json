@@ -1,7 +1,7 @@
 {
-  "run_id": "run-20261003T034617-363d",
+  "run_id": "run-20261003T151801-04f0",
   "capability": "mockcore/member.read_savings_balance@1.0.0",
-  "content_hash": "sha256:5f14b90b3b51db882c2f52fbb3f64d5fe5ab47a438968d29e8ffb4431b86f114",
+  "content_hash": "sha256:85e27099728de327c03523d98ff908def5554c70f7873067093a31207009eec7",
   "tenant": null,
   "app_version": "4.2.1",
   "status": "failed",
@@ -11,8 +11,8 @@
     "category": "CHECKPOINT_FAILED",
     "message": "step 'open_search_button' did not reach its expected state",
     "step_id": "open_search_button",
-    "expected": "{\"target\":\"member_id_link\"}",
-    "observed": "[nav] MAIN MENU Home Member Search Teller Transactions Loan Servicing Reports User: SVC-CUA Sign Off | [main] First Example Credit Union | MEMBER INQUIRY Member ID: Last Name: Search Clear NO MEMBERS FOUND MATCHING SEARCH CRITERIA MockCore 4.2.1 (build 2211) Copyright (c) Fictional Core Systems Inc. Authorized use only.",
+    "expected": "visible member_id_link",
+    "observed": "[nav] MAIN MENU Home Member Search Teller Transactions Loan Servicing Reports User: [SECRET] Sign Off | [main] First Example Credit Union | MEMBER INQUIRY Member ID: Last Name: Search Clear NO MEMBERS FOUND MATCHING SEARCH CRITERIA MockCore 4.2.1 (build 2211) Copyright (c) Fictional Core Systems Inc. Authorized use only.",
     "evidence": [
       "screenshots/029-open_search_button-failure.png"
     ]
@@ -20,7 +20,7 @@
   "recoveries": [],
   "drift_warnings": [],
   "interventions": [],
-  "started_at": "2026-10-03T03:46:17.910264Z",
-  "finished_at": "2026-10-03T03:46:30.250270Z",
-  "evidence_dir": "runs/run-20261003T034617-363d"
+  "started_at": "2026-10-03T15:18:02.355238Z",
+  "finished_at": "2026-10-03T15:18:14.313919Z",
+  "evidence_dir": "runs/run-20261003T151801-04f0"
 }

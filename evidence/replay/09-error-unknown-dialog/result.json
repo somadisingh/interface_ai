@@ -1,7 +1,7 @@
 {
-  "run_id": "run-20261003T034731-f2d6",
+  "run_id": "run-20261003T151851-b779",
   "capability": "mockcore/member.read_savings_balance@1.1.0",
-  "content_hash": "sha256:e68a02aabedfb5bc8efe00fc675018e079028fabab1dfdbc2459bef4f0df174e",
+  "content_hash": "sha256:22e1679fe00d0bc13cff00020e282ab80526b44c1fbce6d42ede5585d6e74afb",
   "tenant": null,
   "app_version": "4.2.1",
   "status": "failed",
@@ -12,7 +12,7 @@
     "message": "click could not be performed (not_actionable): Locator.click: Timeout 3000ms exceeded.",
     "step_id": "open_search_button",
     "expected": "click on an actionable element",
-    "observed": "[nav] MAIN MENU Home Member Search Teller Transactions Loan Servicing Reports User: SVC-CUA Sign Off | [main] First Example Credit Union | MEMBER INQUIRY Member ID: Last Name: Search Clear MockCore 4.2.1 (build 2211) Copyright (c) Fictional Core Systems Inc. Authorized use only. BRANCH ANNOUNCEMENT The Elm Street branch will close early on Friday. Please inform members at the teller line. Close",
+    "observed": "[nav] MAIN MENU Home Member Search Teller Transactions Loan Servicing Reports User: [SECRET] Sign Off | [main] First Example Credit Union | MEMBER INQUIRY Member ID: Last Name: Search Clear MockCore 4.2.1 (build 2211) Copyright (c) Fictional Core Systems Inc. Authorized use only. BRANCH ANNOUNCEMENT The Elm Street branch will close early on Friday. Please inform members at the teller line. Close",
     "evidence": [
       "screenshots/028-open_search_button-failure.png"
     ]
@@ -20,7 +20,7 @@
   "recoveries": [],
   "drift_warnings": [],
   "interventions": [],
-  "started_at": "2026-10-03T03:47:31.981043Z",
-  "finished_at": "2026-10-03T03:47:47.087016Z",
-  "evidence_dir": "runs/run-20261003T034731-f2d6"
+  "started_at": "2026-10-03T15:18:52.003849Z",
+  "finished_at": "2026-10-03T15:19:06.348912Z",
+  "evidence_dir": "runs/run-20261003T151851-b779"
 }

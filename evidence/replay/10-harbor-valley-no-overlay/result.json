@@ -1,18 +1,22 @@
 {
-  "run_id": "run-20261003T034845-aa65",
+  "run_id": "run-20261003T151907-af4a",
   "capability": "mockcore/member.read_savings_balance@1.1.0",
-  "content_hash": "sha256:e68a02aabedfb5bc8efe00fc675018e079028fabab1dfdbc2459bef4f0df174e",
+  "content_hash": "sha256:22e1679fe00d0bc13cff00020e282ab80526b44c1fbce6d42ede5585d6e74afb",
   "tenant": "harbor_valley_fcu",
   "app_version": "4.3.0",
-  "status": "success",
-  "outputs": {
-    "savings_balance": {
-      "amount": "*****33",
-      "currency": "USD"
-    }
-  },
+  "status": "failed",
+  "outputs": {},
   "outcome": null,
-  "error": null,
+  "error": {
+    "category": "CHECKPOINT_FAILED",
+    "message": "step 'open_member_id_link' did not reach its expected state",
+    "step_id": "open_member_id_link",
+    "expected": "visible current_balance_value",
+    "observed": "[nav] MAIN MENU Home Find Member Teller Transactions Loan Servicing Reports User: [SECRET] Sign Off | [main] Harbor Valley Federal Credit Union | MEMBER INQUIRY - ***45 Name [REDACTED] Member # [REDACTED] SSN [REDACTED] Date of Birth [REDACTED] Address [REDACTED] Suffix Description Nickname Balance S00 Share Savings PRIMARY SAVINGS [REDACTED] S10 Share Draft Checking CHECKING [REDACTED] Add Share Account | Find Member MockCore 4.3.0 (build 2305) Copyright (c) Fictional Core Systems Inc. Authorized use only.",
+    "evidence": [
+      "screenshots/036-open_member_id_link-failure.png"
+    ]
+  },
   "recoveries": [],
   "drift_warnings": [
     {
@@ -32,16 +36,10 @@
       "target": "search_button",
       "used_strategy": "css",
       "used_index": 1
-    },
-    {
-      "step_id": "read_current_balance_value",
-      "target": "current_balance_value",
-      "used_strategy": "css",
-      "used_index": 1
     }
   ],
   "interventions": [],
-  "started_at": "2026-10-03T03:48:46.137575Z",
-  "finished_at": "2026-10-03T03:48:49.108608Z",
-  "evidence_dir": "runs/run-20261003T034845-aa65"
+  "started_at": "2026-10-03T15:19:07.628195Z",
+  "finished_at": "2026-10-03T15:19:20.094604Z",
+  "evidence_dir": "runs/run-20261003T151907-af4a"
 }

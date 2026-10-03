@@ -21,9 +21,9 @@ outputs:
     description: Current balance of the member's Share Savings account
     sensitivity: pii
 outcomes:
-  MEMBER_NOT_FOUND:
-    description: Searched for member ID {{inputs.member_id}} and received 'NO MEMBERS FOUND MATCHING SEARCH
-      CRITERIA'.
+  NO_MEMBERS_FOUND_MATCHING_SEARCH_CRITERIA:
+    description: Looked up member {{inputs.member_id}} but the application returned 'NO MEMBERS FOUND
+      MATCHING SEARCH CRITERIA'.
     retryable: false
 targets:
   member_search_link:
@@ -87,9 +87,6 @@ targets:
     - strategy: text
       text: '{{inputs.member_id}}'
       exact: true
-    - strategy: css
-      selector: body > table > tbody > tr > td > table > tbody > tr:nth-of-type(2) > td:nth-of-type(1)
-        > a
     sensitive: false
   current_balance_value:
     description: '"Current Balance" value in the row for "S00"'
@@ -99,12 +96,10 @@ targets:
     - strategy: table_cell
       row_text: S00
       column_header: Current Balance
-    - strategy: css
-      selector: body > table > tbody > tr > td > table:nth-of-type(2) > tbody > tr:nth-of-type(2) > td:nth-of-type(4)
     sensitive: false
 steps:
 - id: open_member_search_link
-  intent: Click Member Search to look up member {{inputs.member_id}}
+  intent: Click Member Search to find member {{inputs.member_id}}.
   action:
     type: click
     target: member_search_link
@@ -116,7 +111,7 @@ steps:
   outcomes: []
   timeout_ms: 10000
 - id: enter_member_id_field
-  intent: Enter member ID {{inputs.member_id}} in Member ID field
+  intent: Enter member ID {{inputs.member_id}} in the Member ID field.
   action:
     type: fill
     target: member_id_field
@@ -127,7 +122,7 @@ steps:
   outcomes: []
   timeout_ms: 10000
 - id: open_search_button
-  intent: Click Search button to find member {{inputs.member_id}}
+  intent: Click Search button to find the member.
   action:
     type: click
     target: search_button
@@ -142,10 +137,10 @@ steps:
       pattern: NO\ MEMBERS\ FOUND\ MATCHING\ SEARCH\ CRITERIA
       frame:
       - name: main
-    outcome: MEMBER_NOT_FOUND
+    outcome: NO_MEMBERS_FOUND_MATCHING_SEARCH_CRITERIA
   timeout_ms: 10000
 - id: open_member_id_link
-  intent: Click member link {{inputs.member_id}} to view details
+  intent: Click on the member ID to view details.
   action:
     type: click
     target: member_id_link
@@ -157,7 +152,7 @@ steps:
   outcomes: []
   timeout_ms: 10000
 - id: read_current_balance_value
-  intent: Extract current balance of Share Savings account
+  intent: Extract the current balance of the member's Share Savings account.
   action:
     type: extract
     target: current_balance_value
@@ -178,7 +173,9 @@ review:
   status: draft
 provenance:
   source: discovery
-  recorded_from_run: disc-20261003T033622-82ef
-  recorded_at: '2026-10-03T03:39:05.822585Z'
-  model: gemini-3.8-flash
-  content_hash: sha256:e68a02aabedfb5bc8efe00fc675018e079028fabab1dfdbc2459bef4f0df174e
+  recorded_from_run: disc-20261003T151340-72e6
+  recorded_at: '2026-10-03T15:13:53.525451Z'
+  model: gemini-3.5-flash
+  merged_runs:
+  - disc-20261003T151402-fc05
+  content_hash: sha256:22e1679fe00d0bc13cff00020e282ab80526b44c1fbce6d42ede5585d6e74afb

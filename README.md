@@ -75,7 +75,7 @@ uv run cua review capabilities/mockcore/member.read_savings_balance/1.1.0.yaml
 # 4. Deterministic replay: no model in the loop. Uses the newest version; pin one with
 #    mockcore/member.read_savings_balance@1.1.0. Prints the RunResult JSON.
 uv run cua replay mockcore/member.read_savings_balance --input member_id=34567   # success
-uv run cua replay mockcore/member.read_savings_balance --input member_id=99999   # business outcome
+uv run cua replay mockcore/member.read_savings_balance --input member_id=99999   # business outcome (not found)
 uv run cua replay mockcore/member.read_savings_balance --input member_id=55555   # PERMISSION_DENIED
 ```
 
@@ -111,7 +111,7 @@ cp .env.example .env                 # fill in values; .env is git-ignored
 | `ANTHROPIC_API_KEY` | Discovery with Claude. Replay never calls a model. |
 | `ANTHROPIC_WORKSPACE_ID` | Only if your Anthropic key isn't scoped to a workspace: the workspace to bill discovery to. |
 | `GEMINI_API_KEY` | Discovery with Gemini. |
-| `CUA_MODEL` | Model used for discovery (defaults: `claude-sonnet-5-5`, `gemini-3.8-flash`). |
+| `CUA_MODEL` | Model used for discovery (defaults: `claude-sonnet-5-5`, `gemini-3.8-flash`; the evidence used `gemini-3.5-flash`). |
 | `MOCKCORE_USERNAME` / `MOCKCORE_PASSWORD` | Sign-on for the local MockCore app (fake credentials). |
 
 Run the checks:
@@ -191,14 +191,18 @@ converted, and duplicate keys are rejected.
   MockCore's `/__admin` test hooks are denied.
 - **Risk:** a click whose label contains words like *confirm, submit, transfer* is
   irreversible. Effective risk is the higher of what the capability declares and what the
-  label implies, so a capability can never downgrade a Confirm button to "safe".
+  label implies, so a capability can never downgrade a Confirm button to "safe". A key press
+  is judged by what it acts on: the focused element and, for Enter, the form it would submit.
 - **Tiered approval:** during discovery, irreversible actions always need a human. On
   replay they need a human unless the capability is `approved` **and** a reviewer marked
-  that step `auto_approve_on_replay`.
+  that step `auto_approve_on_replay`. An approval is bound to the capability's content hash
+  (editing it voids the approval), and tenant overlays don't inherit it.
 - **Redaction:** secrets are resolved from the environment at the moment of use and
-  replaced with `[SECRET]` everywhere. Declared PII values are masked (`***45`), and SSNs,
-  Luhn-valid card numbers and e-mail addresses are caught by pattern. Screenshots have
-  sensitive elements and matching text painted over before the image is written.
+  replaced with `[SECRET]` everywhere, in any letter case. Declared PII values are masked
+  (`***45`), and SSNs, Luhn-valid card numbers and e-mail addresses are caught by pattern.
+  Screenshots are painted over before the image is written: matching text, typed values, and
+  every field the app profile lists in `sensitive_fields` (name, date of birth, address,
+  balances…). Failure text in the log masks the same fields.
 
 ## Human handoff
 
@@ -212,8 +216,12 @@ screenshot, the step and the reason.
 - **Take control:** the session's control lease moves to you. Automation is now blocked from
   acting (enforced at the browser layer), and you operate **the same browser window**. Your
   clicks and changes are recorded, with values redacted.
-- **Hand back:** choose *resume*, *skip step* or *abort*. Automation re-checks the page and
-  carries on from the current step.
+- **Hand back:** choose *resume*, *skip step* or *abort*. Automation re-checks the page: if
+  you already completed the current step, it is not repeated; otherwise the policy gate runs
+  again before automation acts.
+
+A click in the browser made before pressing *Take control* is still recorded, flagged
+`without_lease`. A request nobody claims times out (15 minutes by default, in `policy.yaml`).
 
 Every control transfer (automation → paused → human → automation) is logged with who made it
 and why, and appears in the run report.
@@ -244,8 +252,9 @@ uv run cua mockcore --variant b --port 8767      # "Harbor Valley": same product
 uv run cua replay mockcore/member.read_savings_balance --input member_id=12345 --tenant harbor_valley_fcu
 ```
 
-Without an overlay, the base capability still succeeds on the second tenant via fallback
-locators, and the result lists drift warnings. With the overlay
+Without an overlay, the base capability navigates the second tenant on fallback locators (each
+reported as a drift warning), but stops at the renamed balance column rather than read a money
+value by its position. With the overlay
 (`tenants/harbor_valley_fcu/overrides/member.read_savings_balance.yaml`) it runs with no drift,
 and the result records `tenant` and the detected `app_version`. Both runs are in
 `evidence/replay/10-*` and `11-*`.

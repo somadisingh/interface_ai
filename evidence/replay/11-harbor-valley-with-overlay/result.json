@@ -1,7 +1,7 @@
 {
-  "run_id": "run-20261003T034902-a562",
+  "run_id": "run-20261003T151920-9a50",
   "capability": "mockcore/member.read_savings_balance@1.1.0",
-  "content_hash": "sha256:d6b979ee1a13feff199cb5a7e93a7d085154cd2bd92d0fbf3c0dc0f32d9901f3",
+  "content_hash": "sha256:f217e84be3f6896dc4330d5a786884d95b9e28eb1745ad64e2dc7683f557d115",
   "tenant": "harbor_valley_fcu",
   "app_version": "4.3.0",
   "status": "success",
@@ -16,7 +16,7 @@
   "recoveries": [],
   "drift_warnings": [],
   "interventions": [],
-  "started_at": "2026-10-03T03:49:02.727105Z",
-  "finished_at": "2026-10-03T03:49:05.756440Z",
-  "evidence_dir": "runs/run-20261003T034902-a562"
+  "started_at": "2026-10-03T15:19:21.388032Z",
+  "finished_at": "2026-10-03T15:19:23.793701Z",
+  "evidence_dir": "runs/run-20261003T151920-9a50"
 }

@@ -1,5 +1,5 @@
 {
-  "run_id": "disc-20261003T033622-82ef",
+  "run_id": "disc-20261003T151340-72e6",
   "capability_id": "member.read_savings_balance",
   "product": "mockcore",
   "goal": "Look up member {{inputs.member_id}} and read their current savings balance",
@@ -19,11 +19,11 @@
   "requires": [
     "session.sign_on"
   ],
-  "model": "gemini-3.8-flash",
-  "started_at": "2026-10-03T03:36:24.050870Z",
-  "finished_at": "2026-10-03T03:39:05.822585Z",
+  "model": "gemini-3.5-flash",
+  "started_at": "2026-10-03T15:13:41.626450Z",
+  "finished_at": "2026-10-03T15:13:53.525451Z",
   "status": "succeeded",
-  "summary": "Member {{inputs.member_id}} (Jane Q Sample) was located, and the current savings balance of *******33 was extracted.",
+  "summary": "Looked up member {{inputs.member_id}}, verified their Share Savings account current balance is *******33, and extracted this value.",
   "outcome_code": null,
   "outcome_text": null,
   "steps": [
@@ -31,7 +31,7 @@
       "index": 0,
       "actor": "agent",
       "tool": "click",
-      "reason": "Click Member Search to look up member {{inputs.member_id}}",
+      "reason": "Click Member Search to find member {{inputs.member_id}}.",
       "target": {
         "description": "link \"Member Search\"",
         "frame": [
@@ -83,7 +83,7 @@
       "index": 1,
       "actor": "agent",
       "tool": "fill",
-      "reason": "Enter member ID {{inputs.member_id}} in Member ID field",
+      "reason": "Enter member ID {{inputs.member_id}} in the Member ID field.",
       "target": {
         "description": "textbox in the row labelled \"Member ID:\"",
         "frame": [
@@ -130,7 +130,7 @@
       "index": 2,
       "actor": "agent",
       "tool": "click",
-      "reason": "Click Search button to find member {{inputs.member_id}}",
+      "reason": "Click Search button to find the member.",
       "target": {
         "description": "clickable \"Search\"",
         "frame": [
@@ -170,7 +170,7 @@
       "index": 3,
       "actor": "agent",
       "tool": "click",
-      "reason": "Click member link {{inputs.member_id}} to view details",
+      "reason": "Click on the member ID to view details.",
       "target": {
         "description": "link \"{{inputs.member_id}}\"",
         "frame": [
@@ -185,12 +185,6 @@
             "role": "link",
             "name": "{{inputs.member_id}}",
             "exact": true
-          },
-          {
-            "strategy": "anchor",
-            "anchor_text": "SAMPLE, JANE Q",
-            "relation": "same_row",
-            "role": "link"
           },
           {
             "strategy": "table_cell",
@@ -227,7 +221,7 @@
       "index": 4,
       "actor": "agent",
       "tool": "extract",
-      "reason": "Extract current balance of Share Savings account",
+      "reason": "Extract the current balance of the member's Share Savings account.",
       "target": {
         "description": "\"Current Balance\" value in the row for \"S00\"",
         "frame": [
@@ -267,7 +261,7 @@
   "recoveries": [],
   "interventions": [],
   "usage": {
-    "input_tokens": "[SECRET]",
-    "output_tokens": "[SECRET]"
+    "input_tokens": 27458,
+    "output_tokens": 554
   }
 }
