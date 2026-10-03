@@ -6,7 +6,7 @@ The system works in three stages:
 - The run is compiled into a typed, versioned **capability**.
 - The capability is **replayed with no model in the loop**.
 
-Every replay ends as a success, a business outcome, an escalation or a hard failure. When automation can't proceed safely, a person takes over the same live browser and hands it back. The evidence, with real Gemini discovery runs and twelve replays, is in [`evidence/`](evidence/README.md).
+Every replay ends as a success, a business outcome, an escalation or a hard failure. When automation can't proceed safely, a person takes over the same live browser and hands it back. The evidence (real Gemini discovery runs, twelve replays and a live handoff) is in [`evidence/`](evidence/README.md).
 
 ## 1. Architecture
 
@@ -117,6 +117,9 @@ Each request carries the goal or capability, step, reason, URL and a masked scre
 - On the operator page, the person can approve or reject, **take control** of the same browser window, then **hand back** to resume, skip or abort.
 - An injected recorder captures their clicks and changes, redacted, in every frame.
 - On hand-back, automation re-observes the page and re-checks the step's checkpoint; it never assumes where the person left off.
+- Input made while paused, before anyone takes control, is recorded too, flagged `without_lease`. A real demo run had missed such a click; that is how the gap was found.
+
+The [handoff evidence](evidence/handoff/01-operator-takeover/run_report.md) shows the full sequence: unknown dialog → request → take control → the person's click → hand back → success.
 
 **Built vs. designed.** The lease, queue, operator page and action capture are real. Remote streaming, authenticated operators, on-call routing with SLAs, and signed approval records are designed only.
 

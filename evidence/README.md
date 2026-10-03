@@ -45,9 +45,32 @@ Every run used `uv run cua replay mockcore/member.read_savings_balance --input m
 | [`06-recovery-session-timeout`](replay/06-recovery-session-timeout/run_report.md) | `session_timeout=3` | `success`, 1 recovery | Session expiry mid-flow: re-sign-on and restart (safe because no irreversible step had run) |
 | [`07-slow-pages`](replay/07-slow-pages/run_report.md) | `slow=1500` | `success` | Polling waits for checkpoints instead of fixed sleeps |
 | [`08-error-app-500`](replay/08-error-app-500/run_report.md) | `error500=/members/1` | `failed` `APP_ERROR`, exit 1 | Error replay: known failure state, failure screenshot, step id |
-| [`09-error-unknown-dialog`](replay/09-error-unknown-dialog/run_report.md) | `announcement` | `failed` `UNKNOWN_STATE`, exit 1 | Error replay: an unrecognised blocking dialog stops the run with expected vs observed text. With `--escalate` it goes to a human instead (see the handoff run). |
+| [`09-error-unknown-dialog`](replay/09-error-unknown-dialog/run_report.md) | `announcement` | `failed` `UNKNOWN_STATE`, exit 1 | Error replay: an unrecognised blocking dialog stops the run with expected vs observed text. With `--escalate` it goes to a person instead (see the handoff run below). |
 | [`10-harbor-valley-no-overlay`](replay/10-harbor-valley-no-overlay/run_report.md) | tenant `harbor_valley_fcu`, MockCore 4.3.0 with relabelled UI, no overlay | `success` with 4 drift warnings | The base capability survives a second bank on fallback locators, and says which ones it fell back to |
 | [`11-harbor-valley-with-overlay`](replay/11-harbor-valley-with-overlay/run_report.md) | same tenant, with the overlay | `success`, no drift | A small tenant overlay restores primary locators; the base artifact is unchanged |
 | [`12-first-example-unaffected`](replay/12-first-example-unaffected/run_report.md) | tenant `first_example_cu` | `success`, no drift | The overlay applies only to its own tenant |
+
+## Human handoff: a person takes over the live session
+
+This run was performed by hand on a Mac. MockCore was started with `--faults announcement`, and the replay command was:
+
+```
+uv run cua replay mockcore/member.read_savings_balance --input member_id=12345 --human operator --escalate
+```
+
+| Run | Result | What it shows |
+|---|---|---|
+| [`01-operator-takeover`](handoff/01-operator-takeover/run_report.md) | `success`, 1 intervention | See the sequence below |
+
+The sequence, in this order:
+
+1. An unknown blocking dialog stopped the search step, and an assist request with a masked screenshot appeared on the operator page.
+2. The control lease went automation → paused.
+3. The operator pressed **Take control**: paused → human.
+4. The operator clicked *Close* in the same browser window. This was recorded as a `human_action` attributed to the lease holder.
+5. The operator handed back with *resume*: human → automation.
+6. Automation re-checked the step and finished, extracting the balance.
+
+An earlier attempt at this demo also succeeded, but recorded no human action. The operator had clicked *Close* before pressing **Take control**, and the recorder then ignored input while the session was paused. Such input is now recorded too, flagged `without_lease`, so nothing done to the session goes unaudited.
 
 Not included: raw Playwright traces. They record typed credentials and unmasked pages, so they are now opt-in (`--debug-trace`), named `trace.UNREDACTED.zip`, and git-ignored.

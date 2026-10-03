@@ -37,7 +37,7 @@ Checked items are implemented and tested.
 - [x] Human-in-the-loop handoff: control lease, intervention queue, local operator page, capture of the person's actions
 - [x] Evidence per run: redacted event log, masked screenshots, generated `run_report.md` (raw Playwright trace only with `--debug-trace`)
 - [x] Stretch: cross-tenant reuse (tenant overlays + product-version gate)
-- [x] Curated [`/evidence/`](evidence/README.md): real Gemini discovery runs, 12 replay runs including error replays and cross-tenant, and the design write-up ([`REPORT.md`](REPORT.md))
+- [x] Curated [`/evidence/`](evidence/README.md): real Gemini discovery runs, 12 replay runs including error replays and cross-tenant, a live human-handoff run, and the design write-up ([`REPORT.md`](REPORT.md))
 
 ## Demo path
 
@@ -279,4 +279,4 @@ tests/              unit, HTTP-level and browser tests
 |---|---|
 | `/README.md` | This file: setup, configuration and the demo path |
 | `/REPORT.md` | Design write-up: Architecture · Artifact schema · Determinism & error handling · Heterogeneity & multi-tenant · Escalation & handoff · Safety · Cuts |
-| `/evidence/` | Example capability artifact and tenant overlay, logs from two real LLM discovery runs, and 12 replay runs including error replays ([index](evidence/README.md)) |
+| `/evidence/` | Example capability artifact and tenant overlay, logs from two real LLM discovery runs, 12 replay runs including error replays, and a human-handoff run ([index](evidence/README.md)) |
