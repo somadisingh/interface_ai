@@ -201,6 +201,14 @@ def discover(
 
     load_dotenv()
     params = _pairs(param, "--param")
+    base_cap = None
+    if merge_into is not None:  # check before spending a model run, not after
+        try:
+            base_cap = load_capability(merge_into)
+        except (FileNotFoundError, ValueError) as exc:
+            _abort(f"--merge-into: {str(exc).splitlines()[0]}")
+        if base_cap.id != capability:
+            _abort(f"--merge-into is {base_cap.id!r}, not {capability!r}")
     outputs: dict[str, OutputSpec] = {}
     for item in output:
         name, _, rest = item.partition(":")
@@ -260,9 +268,18 @@ def discover(
     _warn_raw_trace(run_dir)
     typer.echo(f"discovery {trace.status}: {trace.summary}")
     typer.echo(f"  steps: {len(trace.steps)}  tokens: {trace.usage}  evidence: {run_dir}")
+    if trace.status == "aborted" and "model call failed" in trace.summary:
+        typer.echo(
+            "  the model provider kept failing; run the same command again later, or pick "
+            "another model with CUA_MODEL in .env",
+            err=True,
+        )
+    if merge_into is not None and trace.status != "outcome":
+        typer.echo("  nothing merged: the run did not end on a business outcome", err=True)
     target = None
     if merge_into is not None and trace.status == "outcome":
-        cap = merge_outcome(load_capability(merge_into), trace)
+        assert base_cap is not None
+        cap = merge_outcome(base_cap, trace)
         cap = cap.model_copy(
             update={"version": _free_version(registry.root / product / cap.id, cap.version)}
         )

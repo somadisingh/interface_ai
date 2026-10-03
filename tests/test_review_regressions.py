@@ -312,3 +312,21 @@ def test_error_reports_describe_conditions_readably() -> None:
     from cua.schema.conditions import Visible
 
     assert _describe(Visible(target="current_balance_value")) == "visible current_balance_value"
+
+
+def test_merge_target_is_checked_before_any_model_call(tmp_path: Path) -> None:
+    result = CliRunner().invoke(
+        app,
+        [
+            "discover",
+            "--capability",
+            "member.read_savings_balance",
+            "--goal",
+            "g",
+            "--param",
+            "member_id=99999",
+            "--merge-into",
+            str(tmp_path / "missing.yaml"),
+        ],
+    )
+    assert result.exit_code == 1 and "--merge-into" in result.output
