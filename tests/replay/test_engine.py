@@ -283,13 +283,33 @@ def test_rejected_approval_stops_before_the_irreversible_action(
 def test_approved_capability_with_preapproved_step_runs_unattended(
     live_mockcore: LiveServer, base: str, tmp_path: Path
 ) -> None:
+    human = ScriptedChannel()
+    result = replay(base, tmp_path, _approved_open(), OPEN_INPUTS, human=human)
+    assert result.status == "success", result.error
+    assert human.approvals == []
+
+
+def _approved_open(**step_changes: Any) -> Capability:
+    """OPEN as a reviewer would leave it: approved, ``confirm`` pre-approved, and the
+    content hash at approval time recorded. ``step_changes`` then edit the confirm step
+    *after* approval (without re-review)."""
     data = OPEN.model_dump(mode="json")
     data["review"] = {"status": "approved", "reviewed_by": "reviewer"}
     next(s for s in data["steps"] if s["id"] == "confirm")["auto_approve_on_replay"] = True
-    human = ScriptedChannel()
-    result = replay(base, tmp_path, Capability.model_validate(data), OPEN_INPUTS, human=human)
+    data["provenance"]["content_hash"] = Capability.model_validate(data).content_hash()
+    next(s for s in data["steps"] if s["id"] == "confirm").update(step_changes)
+    return Capability.model_validate(data)
+
+
+def test_editing_an_approved_capability_voids_its_approval(
+    live_mockcore: LiveServer, base: str, tmp_path: Path
+) -> None:
+    human = ScriptedChannel(approve=lambda r: ApprovalResponse(True, "supervisor"))
+    edited = _approved_open(intent="Confirm, but edited after review")
+    result = replay(base, tmp_path, edited, OPEN_INPUTS, human=human)
     assert result.status == "success", result.error
-    assert human.approvals == []
+    assert [a.step for a in human.approvals] == ["confirm"]  # a person had to approve again
+    assert "approval_void" in [e["type"] for e in events(tmp_path)]
 
 
 def test_validation_rejection_is_a_business_outcome(

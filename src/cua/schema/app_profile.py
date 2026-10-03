@@ -40,6 +40,7 @@ FailureCategory = Literal[
     "APPROVAL_DENIED",  # a human rejected an irreversible step
     "HUMAN_ABORTED",  # a human aborted the run during a handoff
     "CONFIGURATION_ERROR",  # the runtime is misconfigured (e.g. a required secret is unset)
+    "INTERNAL_ERROR",  # an unexpected error in the automation itself (a bug, not the app)
 ]
 
 
@@ -108,6 +109,11 @@ class AppProfile(Model):
     """Regex whose first group reads the running product version off the page. Replay
     refuses to run a capability outside its ``app.product_versions`` range."""
     session: SessionConfig
+    sensitive_fields: list[str] = Field(default_factory=list)
+    """Labels of fields whose values are personal or financial data (e.g. ``Name``,
+    ``Date of Birth``). Wherever such a label heads a row or a column, the values next to
+    or under it are painted over in every evidence screenshot, whether or not the run
+    declared them. Field classification belongs to the product, not to each capability."""
     targets: dict[Identifier, TargetSpec] = Field(default_factory=dict)
     states: dict[Identifier, KnownState] = Field(default_factory=dict)
 

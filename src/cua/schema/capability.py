@@ -139,8 +139,11 @@ class Provenance(Model):
     recorded_from_run: str | None = None
     recorded_at: datetime | None = None
     model: str | None = None
+    merged_runs: list[str] = Field(default_factory=list)
+    """Later discovery runs merged in (e.g. negative runs that taught a business outcome)."""
     content_hash: str | None = None
-    """sha256 over the contract and implementation (excludes review and provenance)."""
+    """sha256 over the contract and implementation (excludes governance: review, provenance
+    and per-step pre-approval)."""
 
 
 class Capability(Model):
@@ -257,9 +260,13 @@ class Capability(Model):
     def content_hash(self) -> str:
         """Deterministic hash of what the capability *does* (contract + implementation).
 
-        Review status and provenance are excluded: approving a capability does not change
-        its behaviour, so it must not change its identity."""
+        Governance is excluded: review status, provenance, and each step's
+        ``auto_approve_on_replay`` (a reviewer's pre-approval). Approving a capability does
+        not change its behaviour, so it must not change its identity; and replay checks an
+        approval against this hash, so any change to what the capability does voids it."""
         body = self.model_dump(mode="json", exclude={"review", "provenance"})
+        for step in body["steps"]:
+            step.pop("auto_approve_on_replay", None)
         canonical = json.dumps(body, sort_keys=True, separators=(",", ":"))
         return "sha256:" + hashlib.sha256(canonical.encode()).hexdigest()
 

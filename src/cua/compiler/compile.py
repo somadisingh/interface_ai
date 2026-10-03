@@ -83,6 +83,31 @@ def _target_name(spec: TargetSpec, tool: str) -> str:
     return base if base.endswith(suffix) else f"{base}_{suffix}"
 
 
+def sanitize_target(spec: TargetSpec, *, read: bool) -> TargetSpec:
+    """Drop fallbacks that could silently hit the *wrong* element, or that carry data.
+
+    A CSS path is purely positional ("4th cell of the 2nd row"). That is an acceptable last
+    resort for a button, but not for a value being read (a reordered table would return
+    another account's balance as a success) or for an element picked out by an input (the
+    path encodes the row it was in during discovery, not the input). So for those, CSS is
+    dropped whenever a meaningful strategy exists; failing loudly beats a wrong answer."""
+    keyed = any("{{inputs." in str(loc.model_dump()) for loc in spec.locators)
+    locators = list(spec.locators)
+    if keyed:
+        # Its row's other cells are the record's data (e.g. a member's name): an anchor on
+        # them would leak into the artifact and only ever match that one record.
+        locators = [
+            loc
+            for loc in locators
+            if loc.strategy != "anchor" or "{{inputs." in str(loc.model_dump())
+        ]
+    if (read or keyed) and any(loc.strategy != "css" for loc in locators):
+        locators = [loc for loc in locators if loc.strategy != "css"]
+    if locators == list(spec.locators):
+        return spec
+    return spec.model_copy(update={"locators": locators})
+
+
 def compile_trace(
     trace: DiscoveryTrace,
     *,
@@ -102,13 +127,14 @@ def compile_trace(
     for s in steps:
         if s.target is None:
             continue
-        existing = next((n for n, t in targets.items() if t == s.target), None)
+        spec = sanitize_target(s.target, read=s.tool == "extract")
+        existing = next((n for n, t in targets.items() if t == spec), None)
         if existing is None:
-            name = _target_name(s.target, s.tool)
+            name = _target_name(spec, s.tool)
             n, unique = 2, name
             while unique in targets:
                 unique, n = f"{name}_{n}", n + 1
-            targets[unique] = s.target
+            targets[unique] = spec
             existing = unique
         target_of[s.index] = existing
 
@@ -244,6 +270,7 @@ def merge_outcome(capability: Capability, trace: DiscoveryTrace) -> Capability:
     data["version"] = f"{major}.{minor + 1}.0"
     data["review"] = {"status": "draft"}
     data["provenance"]["content_hash"] = None
+    data["provenance"]["merged_runs"] = [*data["provenance"].get("merged_runs", []), trace.run_id]
     return Capability.model_validate(data)
 
 

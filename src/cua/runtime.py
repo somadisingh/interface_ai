@@ -77,6 +77,7 @@ def open_runtime(
                 f"tenant {tenant!r} runs {tenant_cfg.config.product!r}, not {product!r}"
             )
         profile = apply_profile_overrides(profile, tenant_cfg.config.profile_overrides)
+    redactor.sensitive_labels = list(profile.sensitive_fields)
     registry = CapabilityRegistry(root / "capabilities")
 
     def on_transfer(t: Transition) -> None:
@@ -95,16 +96,25 @@ def open_runtime(
         base_url, headless=headless, request_guard=policy.request_guard, trace=debug_trace
     ) as surface:
         surface.control = control
+        surface.sensitive_labels = list(profile.sensitive_fields)
         channel: HumanChannel
         if human == "operator":
             queue = InterventionQueue()
             channel = OperatorChannel(
-                surface, control, queue, log, simulate_operator=simulate_operator
+                surface,
+                control,
+                queue,
+                log,
+                simulate_operator=simulate_operator,
+                max_wait_seconds=policy.policy.limits.max_wait_for_human_seconds,
             )
             server = OperatorServer(
                 create_operator_app(control, queue, log.run_dir), port=operator_port
             )
             server.start()
+            # The automation must never be able to drive the console that supervises it.
+            for host in ("127.0.0.1", "localhost"):
+                policy.denied_origins.add(f"http://{host}:{operator_port}")
         else:
             channel = human
         engine = ReplayEngine(

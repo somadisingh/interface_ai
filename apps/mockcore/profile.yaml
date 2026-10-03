@@ -16,6 +16,23 @@ version_pattern: 'MockCore (\d+\.\d+\.\d+)'
 session:
   sign_on_capability: session.sign_on
 
+# Field labels whose values are member data. Their values are painted over in every
+# evidence screenshot (beside a row label, or under a column header), even when a run did
+# not declare them as inputs or outputs.
+sensitive_fields:
+  - Name
+  - Member
+  - "Member #"
+  - Member ID
+  - Account Number
+  - Last Name
+  - SSN
+  - Date of Birth
+  - Address
+  - Current Balance
+  - Balance
+  - Opening Deposit
+
 targets:
   maintenance_ack:
     description: Acknowledge button on the scheduled-maintenance notice

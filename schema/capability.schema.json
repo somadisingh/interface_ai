@@ -756,6 +756,13 @@
           "default": null,
           "title": "Model"
         },
+        "merged_runs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Merged Runs",
+          "type": "array"
+        },
         "content_hash": {
           "anyOf": [
             {

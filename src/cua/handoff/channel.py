@@ -3,7 +3,7 @@
 Automation never talks to a person directly; it raises a typed request through a
 ``HumanChannel`` and blocks until a response arrives:
 
-* ``approve`` — an irreversible step needs a person's go-ahead (policy tier, D9).
+* ``approve`` — an irreversible step needs a person's go-ahead (the policy's approval tier).
 * ``assist`` — the run is stuck or hit a state it can't recover from; a person takes over
   the *same live session*, fixes it, and hands control back with a resolution.
 

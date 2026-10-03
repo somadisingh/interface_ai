@@ -55,7 +55,7 @@ def test_declared_risk_can_raise_but_never_lower_inferred_risk() -> None:
     assert ENGINE.classify("click", "Go", "irreversible") == "irreversible"
 
 
-# ------------------------------------------------------------------ tiered approval (D9)
+# ------------------------------------------------------------------ tiered approval
 
 
 def test_discovery_always_asks_before_irreversible_actions() -> None:

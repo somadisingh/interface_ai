@@ -6,6 +6,33 @@ is a single arrow function taking one JSON-serialisable argument.
 
 # Shared helpers, prepended to every script.
 _HELPERS = r"""
+// Cells holding the values of fields with these labels: a label cell covers the rest of
+// its row; a label in a header row covers its column below.
+const labelledCells = (labels) => {
+  const norm = (t) => (t || '').replace(/\s+/g, ' ').trim().replace(/:$/, '').toLowerCase();
+  const wanted = new Set(labels.map(norm));
+  const out = [];
+  if (!wanted.size) return out;
+  const isHeaderRow = (row) => Array.from(row.cells).every((c) =>
+    c.tagName === 'TH' || parseInt(getComputedStyle(c).fontWeight, 10) >= 600);
+  for (const cell of document.querySelectorAll('td, th')) {
+    if (!wanted.has(norm(cell.innerText))) continue;
+    const row = cell.parentElement;
+    if (!row || !row.cells) continue;
+    if (isHeaderRow(row) && row.cells.length > 1) {
+      const table = row.closest('table');
+      const col = Array.from(row.cells).indexOf(cell);
+      let past = false;
+      for (const r of table.rows) {
+        if (r === row) { past = true; continue; }
+        if (past && r.closest('table') === table && r.cells[col]) out.push(r.cells[col]);
+      }
+    } else {
+      for (let sib = cell.nextElementSibling; sib; sib = sib.nextElementSibling) out.push(sib);
+    }
+  }
+  return out;
+};
 const clean = (t) => (t || '').replace(/\s+/g, ' ').trim();
 const isVisible = (el) => {
   const r = el.getBoundingClientRect();
@@ -230,20 +257,77 @@ return true;
 
 MARK_TEXT_MATCHES = _script(
     r"""
-const regexes = arg.map((p) => new RegExp(p));
+// arg: {patterns: [regex source], labels: [field label]} (or a bare list of patterns)
+const spec = Array.isArray(arg) ? { patterns: arg, labels: [] } : arg;
+const regexes = spec.patterns.map((p) => new RegExp(p, 'i'));
 document.querySelectorAll('[data-cua-mask]').forEach((e) => e.removeAttribute('data-cua-mask'));
 let n = 0;
+const mark = (el) => { if (el) { el.setAttribute('data-cua-mask', '1'); n += 1; } };
+// 1. text that matches a known value or a regulated-data pattern
 const walker = document.createTreeWalker(document.body || document.documentElement,
                                          NodeFilter.SHOW_TEXT);
 let node;
 while ((node = walker.nextNode())) {
   const text = node.textContent || '';
-  if (regexes.some((r) => r.test(text)) && node.parentElement) {
-    node.parentElement.setAttribute('data-cua-mask', '1');
-    n += 1;
-  }
+  if (regexes.some((r) => r.test(text))) mark(node.parentElement);
 }
+// 2. the same in what has been typed into fields (values are not text nodes)
+for (const el of document.querySelectorAll('input, textarea')) {
+  if (el.type === 'hidden') continue;
+  if (el.type === 'password' && el.value) { mark(el); continue; }
+  if (el.value && regexes.some((r) => r.test(el.value))) mark(el);
+}
+// 3. values of fields the app profile classifies as sensitive, by their label
+for (const cell of labelledCells(spec.labels || [])) mark(cell);
 return n;
+"""
+)
+
+# What a key press would act on: the element (or, with no element, whatever has focus in
+# this frame) and the controls of the form it belongs to, since Enter can submit that form.
+FOCUS_CONTEXT = _script(
+    r"""
+const el = arg || document.activeElement;
+if (!el || el === document.body || ['FRAME', 'FRAMESET', 'IFRAME', 'HTML'].includes(el.tagName)) {
+  return null;
+}
+const form = el.form || (el.closest ? el.closest('form') : null);
+const controls = form
+  ? Array.from(form.querySelectorAll('button, input[type=submit], input[type=button], ' +
+                                     'input[type=image], [onclick], [role=button]'))
+      .map((c) => nameOf(c, roleOf(c)) || clean(c.value || c.innerText))
+      .filter(Boolean)
+  : [];
+return {
+  name: nameOf(el, roleOf(el)) || clean(el.value || el.innerText).slice(0, 120),
+  controls,
+  focused: document.hasFocus(),
+};
+"""
+)
+
+# Visible text with the values of sensitive fields (by label) replaced, for evidence such
+# as the "observed" text of a failure: the log must not carry what screenshots paint over.
+BODY_TEXT_MASKED = _script(
+    r"""
+const hide = labelledCells(arg || []);
+const parts = [];
+const walker = document.createTreeWalker(document.body || document.documentElement,
+                                         NodeFilter.SHOW_TEXT);
+let node;
+let last = null;
+while ((node = walker.nextNode())) {
+  const parent = node.parentElement;
+  if (!parent || ['SCRIPT', 'STYLE'].includes(parent.tagName) || !isVisible(parent)) continue;
+  const host = hide.find((c) => c.contains(node));
+  if (host) {
+    if (host !== last) parts.push('[REDACTED]');
+    last = host;
+    continue;
+  }
+  parts.push(node.textContent);
+}
+return parts.join(' ');
 """
 )
 
@@ -272,10 +356,20 @@ HUMAN_RECORDER = r"""
       e.target.closest('a, button, input, select, textarea, [onclick], td, span')) || e.target;
     send(Object.assign({ action: 'click' }, describe(el)));
   }, true);
-  document.addEventListener('change', (e) => {
-    const el = e.target;
+  // A field edit is reported on 'change' (commit), or 400 ms after the last keystroke if the
+  // person never leaves the field (e.g. types, then hands back from the operator page).
+  const pending = new Map();
+  const report = (el) => {
+    clearTimeout(pending.get(el));
+    pending.delete(el);
     const value = (el.type || '') === 'password' ? '********' : clean(el.value);
     send(Object.assign({ action: 'change', value }, describe(el)));
+  };
+  document.addEventListener('input', (e) => {
+    const el = e.target;
+    clearTimeout(pending.get(el));
+    pending.set(el, setTimeout(() => report(el), 400));
   }, true);
+  document.addEventListener('change', (e) => report(e.target), true);
 })();
 """

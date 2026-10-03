@@ -7,6 +7,8 @@ source of truth for a run; the human-readable report is generated from it.
 from __future__ import annotations
 
 import json
+import threading
+from collections import deque
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -27,6 +29,9 @@ class EventLog:
         self.run_id = run_id
         self.redactor = redactor
         self._seq = 0
+        # emit() is called from the automation thread and the operator server's thread.
+        self._lock = threading.Lock()
+        self._recent: deque[dict[str, Any]] = deque(maxlen=20)
         run_dir.mkdir(parents=True, exist_ok=True)
         (run_dir / "screenshots").mkdir(exist_ok=True)
         self._path = run_dir / "events.jsonl"
@@ -36,18 +41,28 @@ class EventLog:
         return self._path
 
     def emit(self, type: str, **fields: Any) -> dict[str, Any]:
-        self._seq += 1
-        event = {
-            "ts": utcnow().isoformat(timespec="milliseconds"),
-            "seq": self._seq,
-            "run_id": self.run_id,
-            "type": type,
-            **fields,
-        }
-        safe = self.redactor.value(event)
-        with self._path.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(safe, default=str, ensure_ascii=False) + "\n")
-        return dict(safe)
+        with self._lock:
+            self._seq += 1
+            event = {
+                "ts": utcnow().isoformat(timespec="milliseconds"),
+                "seq": self._seq,
+                "run_id": self.run_id,
+                "type": type,
+                **fields,
+            }
+            safe = self.redactor.value(event)
+            with self._path.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(safe, default=str, ensure_ascii=False) + "\n")
+            self._recent.append(safe)
+            return dict(safe)
+
+    def recent(self, n: int = 8) -> list[dict[str, Any]]:
+        """The last ``n`` (already redacted) events, e.g. as context for an operator."""
+        with self._lock:
+            return [
+                {k: v for k, v in e.items() if k not in ("run_id",)}
+                for e in list(self._recent)[-n:]
+            ]
 
     def screenshot(
         self, surface: WebSurface, name: str, *, mask: Sequence[Resolved] = ()
@@ -55,8 +70,12 @@ class EventLog:
         """Masked screenshot; returns its path relative to the run directory."""
         rel = f"screenshots/{self._seq:03d}-{name}.png"
         try:
+            spec = self.redactor.mask_spec()
             surface.screenshot(
-                self.run_dir / rel, mask=mask, mask_text_patterns=self.redactor.dom_patterns()
+                self.run_dir / rel,
+                mask=mask,
+                mask_text_patterns=spec["patterns"],
+                mask_labels=spec["labels"],
             )
         except Exception:  # evidence must never break a run
             return None

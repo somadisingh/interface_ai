@@ -57,6 +57,8 @@ class Redactor:
     def __init__(self) -> None:
         self._secrets: set[str] = set()
         self._pii: set[str] = set()
+        self.sensitive_labels: list[str] = []
+        """Field labels whose values are masked in screenshots (from the app profile)."""
 
     def model_view(self) -> Redactor:
         """A redactor for what the *model* sees: shares this redactor's secrets (live, so
@@ -83,7 +85,8 @@ class Redactor:
     def text(self, value: str) -> str:
         out = value
         for secret in sorted(self._secrets, key=len, reverse=True):
-            out = out.replace(secret, SECRET)
+            # Case-insensitive: apps often echo values upper-cased ("User: SVC-CUA").
+            out = re.sub(re.escape(secret), SECRET, out, flags=re.IGNORECASE)
         for pii in sorted(self._pii, key=len, reverse=True):
             out = re.sub(_whole(pii), mask_value(pii).replace("\\", "\\\\"), out)
         out = _SSN.sub("***-**-****", out)
@@ -112,6 +115,11 @@ class Redactor:
         return obj
 
     # ------------------------------------------------------------------ screenshots
+
+    def mask_spec(self) -> dict[str, list[str]]:
+        """What evidence screenshots paint over: text matching ``dom_patterns`` (also in
+        input values) and the values of fields labelled as sensitive by the app profile."""
+        return {"patterns": self.dom_patterns(), "labels": list(self.sensitive_labels)}
 
     def dom_patterns(self) -> list[str]:
         """JavaScript regex sources for masking matching text in screenshots."""

@@ -85,6 +85,17 @@ class BlockedRequest:
     reason: str
 
 
+class _Dispatched(Exception):
+    """Input reached the page but did not finish: its effect is unknown."""
+
+
+def _dispatch(fn: Callable[[], Any]) -> None:
+    try:
+        fn()
+    except PlaywrightError as exc:
+        raise _Dispatched(str(exc).splitlines()[0]) from exc
+
+
 class WebSurface:
     def __init__(self, page: Page, base_url: str, *, action_timeout_ms: int = 3000) -> None:
         self.page = page
@@ -94,6 +105,8 @@ class WebSurface:
         self._ref_frames: dict[str, Frame] = {}
         self.control: SessionControl | None = None
         """Control lease; when set, every action requires automation to hold it."""
+        self.sensitive_labels: list[str] = []
+        """Labels of fields whose values are masked in evidence text (from the app profile)."""
 
     # ------------------------------------------------------------------ lifecycle
 
@@ -214,6 +227,35 @@ class WebSurface:
     def wait(self, ms: int) -> None:
         self.page.wait_for_timeout(ms)
 
+    def press_label(self, key: str, element: Resolved | None = None) -> str:
+        """What a key press acts on, for risk classification: the target element (or, with
+        none, whatever has focus) and, for Enter, the controls of the form it would submit.
+        Without this, "Tab to Confirm, then press Enter" would look like a harmless key."""
+        contexts: list[dict[str, Any]] = []
+        if element is not None:
+            try:
+                ctx = element.handle.evaluate(dom_scripts.FOCUS_CONTEXT)
+                if ctx:
+                    contexts.append(ctx)
+            except PlaywrightError:
+                pass
+        else:
+            for frame in self._live_frames():
+                try:
+                    ctx = frame.evaluate(dom_scripts.FOCUS_CONTEXT, None)
+                except PlaywrightError:
+                    continue
+                if ctx:
+                    contexts.append(ctx)
+            contexts.sort(key=lambda c: not c.get("focused"))  # the focused frame first
+        if not contexts:
+            return ""
+        ctx = contexts[0]
+        parts = [str(ctx.get("name") or "")]
+        if key.lower() in ("enter", "numpadenter"):
+            parts += [str(c) for c in ctx.get("controls") or []]
+        return " | ".join(p for p in parts if p)
+
     def label_of(self, element: Resolved) -> str:
         """Visible label of a control (text, value of input buttons, aria-label)."""
         try:
@@ -228,12 +270,19 @@ class WebSurface:
             pass
         return ""
 
-    def text_excerpt(self, limit: int = 600) -> str:
-        """Visible text of every frame, compacted (for 'observed' in failure reports)."""
+    def text_excerpt(self, limit: int = 600, *, masked: bool = False) -> str:
+        """Visible text of every frame, compacted. With ``masked`` (for evidence, e.g. the
+        'observed' text of a failure), values of the profile's sensitive fields are
+        replaced by ``[REDACTED]``."""
         parts = []
         for frame in self._live_frames():
             try:
-                text = " ".join(str(frame.evaluate(dom_scripts.BODY_TEXT)).split())
+                raw = (
+                    frame.evaluate(dom_scripts.BODY_TEXT_MASKED, list(self.sensitive_labels))
+                    if masked
+                    else frame.evaluate(dom_scripts.BODY_TEXT)
+                )
+                text = " ".join(str(raw).split())
             except PlaywrightError:
                 continue
             if text:
@@ -408,6 +457,8 @@ class WebSurface:
         try:
             fn()
             return ActionResult(True)
+        except _Dispatched as exc:
+            return ActionResult(False, "uncertain", str(exc))
         except PlaywrightTimeout as exc:
             return ActionResult(False, "not_actionable", str(exc).splitlines()[0])
         except PlaywrightError as exc:
@@ -422,7 +473,18 @@ class WebSurface:
         return self._act(lambda: self.page.goto(url, wait_until="load"))
 
     def click(self, element: Resolved) -> ActionResult:
-        return self._act(lambda: element.handle.click(timeout=self.action_timeout_ms))
+        def do() -> None:
+            # Probe actionability first (scroll, visible, enabled, not covered) without
+            # clicking: a failure here means nothing was sent, so the caller may retry.
+            element.handle.click(trial=True, timeout=self.action_timeout_ms)
+            # Then dispatch without waiting for any navigation it starts: the step's
+            # checkpoint is what proves the click worked. A timeout from here on means the
+            # click may have reached the app, so it is reported as uncertain, never retried.
+            _dispatch(
+                lambda: element.handle.click(timeout=self.action_timeout_ms, no_wait_after=True)
+            )
+
+        return self._act(do)
 
     def fill(self, element: Resolved, value: str) -> ActionResult:
         def do() -> None:
@@ -449,8 +511,13 @@ class WebSurface:
 
     def press(self, key: str, element: Resolved | None = None) -> ActionResult:
         if element is None:
-            return self._act(lambda: self.page.keyboard.press(key))
-        return self._act(lambda: element.handle.press(key, timeout=self.action_timeout_ms))
+            return self._act(lambda: _dispatch(lambda: self.page.keyboard.press(key)))
+
+        def do() -> None:
+            element.handle.focus()  # a failure here means no key was sent
+            _dispatch(lambda: self.page.keyboard.press(key))
+
+        return self._act(do)
 
     def read_text(self, element: Resolved) -> str:
         return str(element.handle.inner_text(timeout=self.action_timeout_ms)).strip()
@@ -552,17 +619,20 @@ class WebSurface:
         *,
         mask: Sequence[Resolved] = (),
         mask_text_patterns: Sequence[str] = (),
+        mask_labels: Sequence[str] = (),
     ) -> Path:
         """Screenshot with sensitive regions painted over before the image is written.
 
         ``mask`` covers targets declared sensitive; ``mask_text_patterns`` (JS regex
-        sources) covers any text that looks sensitive (SSNs, known PII values) wherever it
-        appears, in every frame."""
+        sources) covers any text or typed value that looks sensitive (SSNs, known PII
+        values, secrets) wherever it appears, in every frame; ``mask_labels`` covers the
+        values of fields the app profile classifies as sensitive."""
         locators: list[Locator] = [m.handle for m in mask]
-        if mask_text_patterns:
+        if mask_text_patterns or mask_labels:
+            spec = {"patterns": list(mask_text_patterns), "labels": list(mask_labels)}
             for frame in self._live_frames():
                 try:
-                    if frame.evaluate(dom_scripts.MARK_TEXT_MATCHES, list(mask_text_patterns)):
+                    if frame.evaluate(dom_scripts.MARK_TEXT_MATCHES, spec):
                         locators.append(frame.locator("[data-cua-mask]"))
                 except PlaywrightError:
                     continue

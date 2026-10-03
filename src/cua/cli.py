@@ -7,7 +7,7 @@ is a subcommand of one CLI. Subcommands are added as each component lands.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, NoReturn
 
 import typer
 
@@ -108,8 +108,16 @@ def _pairs(items: list[str], what: str) -> dict[str, str]:
         key, sep, value = item.partition("=")
         if not sep or not key:
             raise typer.BadParameter(f"{what} must look like name=value, got {item!r}")
+        if key.strip() in out:
+            raise typer.BadParameter(f"{what} {key.strip()!r} given more than once")
         out[key.strip()] = value
     return out
+
+
+def _abort(message: str) -> NoReturn:
+    """A problem found before anything ran (unknown capability, tenant, bad file)."""
+    typer.echo(f"error: {message}", err=True)
+    raise typer.Exit(code=1)
 
 
 def _human_channel(kind: str) -> HumanChannel | Literal["operator"]:
@@ -301,23 +309,28 @@ def replay(
 
     Exit codes: 0 success, 3 business outcome, 2 escalated, 1 failed."""
     from dotenv import load_dotenv
+    from pydantic import ValidationError
 
     from cua.replay.support import CapabilityRegistry
     from cua.runtime import open_runtime
     from cua.schema import load_capability
+    from cua.schema.tenancy import Tenant
 
     load_dotenv()
+    inputs = _pairs(input, "--input")
     path = Path(capability)
-    cap = (
-        load_capability(path)
-        if path.exists()
-        else CapabilityRegistry("capabilities").resolve_ref(capability)
-    )
+    try:
+        cap = (
+            load_capability(path)
+            if path.exists()
+            else CapabilityRegistry("capabilities").resolve_ref(capability)
+        )
+        tenant_cfg = Tenant.load(Path("."), tenant).config if tenant else None
+    except (FileNotFoundError, ValueError, ValidationError) as exc:
+        _abort(str(exc).splitlines()[0] if isinstance(exc, ValidationError) else str(exc))
     product = cap.app.product
     if base_url is None:
-        from cua.schema.tenancy import Tenant
-
-        base_url = Tenant.load(Path("."), tenant).config.base_url if tenant else DEFAULT_BASE_URL
+        base_url = tenant_cfg.base_url if tenant_cfg else DEFAULT_BASE_URL
     channel = _human_channel(human)
     with open_runtime(
         base_url,
@@ -330,7 +343,7 @@ def replay(
         debug_trace=debug_trace,
     ) as rt:
         _announce(rt.operator_url)
-        result = rt.engine.run(cap, _pairs(input, "--input"))
+        result = rt.engine.run(cap, inputs)
         if result.status in ("failed", "escalated"):
             rt.keep_trace = True
         run_dir = rt.log.run_dir
@@ -362,6 +375,16 @@ def review(
     typer.echo("  inputs:   " + (", ".join(f"{k}:{v.type}" for k, v in cap.inputs.items()) or "-"))
     typer.echo("  outputs:  " + (", ".join(f"{k}:{v.type}" for k, v in cap.outputs.items()) or "-"))
     typer.echo("  outcomes: " + (", ".join(cap.outcomes) or "-"))
+    profile_path = Path("apps") / cap.app.product / "profile.yaml"
+    if profile_path.exists():
+        from cua.schema import load_app_profile
+
+        inherited = sorted(
+            {s.outcome for s in load_app_profile(profile_path).states.values() if s.outcome}
+        )
+        typer.echo(
+            f"            + from the {cap.app.product} profile: {', '.join(inherited) or '-'}"
+        )
     for i, step in enumerate(cap.steps, 1):
         target = getattr(step.action, "target", None)
         strategies = ""

@@ -27,6 +27,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Literal
 
+from playwright.sync_api import Error as PlaywrightError
+
 from cua.evidence.log import EventLog, utcnow
 from cua.handoff.channel import (
     ApprovalRequest,
@@ -55,7 +57,7 @@ from cua.schema.result import (
     RunError,
     RunStatus,
 )
-from cua.schema.tenancy import Tenant, apply_overlay, version_in_range
+from cua.schema.tenancy import OverlayError, Tenant, apply_overlay, version_in_range
 from cua.surface.base import ActionResult, Resolved
 from cua.surface.web import WebSurface
 
@@ -85,6 +87,10 @@ class _Restart(Exception):
 
 class _SkipStep(Exception):
     pass
+
+
+class _CompletedByHuman(Exception):
+    """After a handoff, the step's checkpoint already holds: the person did the step."""
 
 
 class HandlerError(Exception):
@@ -149,26 +155,29 @@ class ReplayEngine:
     def run(self, cap: Capability, inputs: Mapping[str, str]) -> RunResult:
         """Top-level invocation: returns the caller-facing result contract."""
         started = utcnow()
-        cap = self._effective(cap)
-        state = _Run(cap)
         for name, spec in cap.inputs.items():
             if spec.sensitivity == "pii" and inputs.get(name):
                 self.redactor.add_pii(inputs[name])
-        self.log.emit(
-            "run_started",
-            mode="replay",
-            capability=cap.ref,
-            content_hash=cap.content_hash(),
-            review=cap.review.status,
-            inputs=dict(inputs),
-        )
+        state = _Run(cap)
         status: RunStatus = "success"
         outcome: OutcomeInfo | None = None
         error: RunError | None = None
         try:
+            cap = self._effective(self._check_approval(cap))
+            state.cap = cap
+            self.log.emit(
+                "run_started",
+                mode="replay",
+                capability=cap.ref,
+                content_hash=cap.content_hash(),
+                review=cap.review.status,
+                inputs=dict(inputs),
+            )
             self._execute(state, inputs, top_level=True)
         except RunStop as stop:
             status, outcome, error = stop.status, stop.outcome, stop.error
+        except Exception as exc:  # never end without a result: map to a failure category
+            status, error = "failed", self._unexpected(state, exc)
         result = RunResult(
             run_id=self.log.run_id,
             capability=cap.ref,
@@ -201,14 +210,16 @@ class ReplayEngine:
         self, cap: Capability, inputs: Mapping[str, str], *, ignore: frozenset[str] = frozenset()
     ) -> tuple[RunStatus, OutcomeInfo | None, RunError | None]:
         """Run a capability inside the current run (e.g. sign-on). Logged, not reported."""
-        cap = self._effective(cap)
         state = _Run(cap, ignore_states=ignore)
         self.log.emit("subrun_started", capability=cap.ref)
         try:
+            state.cap = cap = self._effective(self._check_approval(cap))
             self._execute(state, inputs, top_level=False)
             result: tuple[RunStatus, OutcomeInfo | None, RunError | None] = ("success", None, None)
         except RunStop as stop:
             result = (stop.status, stop.outcome, stop.error)
+        except Exception as exc:
+            result = ("failed", None, self._unexpected(state, exc))
         self.log.emit(
             "subrun_finished",
             capability=cap.ref,
@@ -225,15 +236,30 @@ class ReplayEngine:
         for req in requires:
             if req in self._session_done:
                 continue
-            sub = self.registry.get(product, req)
+            try:
+                sub = self.registry.get(product, req)
+            except FileNotFoundError as exc:
+                raise RunStop(
+                    "failed",
+                    error=RunError(
+                        category="CONFIGURATION_ERROR",
+                        message=f"required capability {product}/{req} is not installed: {exc}",
+                    ),
+                ) from exc
             status, outcome, error = self.run_nested(sub, {}, ignore=frozenset({"session_expired"}))
             if status != "success":
                 detail = outcome.code if outcome else (error.message if error else status)
                 raise RunStop(
                     "failed",
                     error=RunError(
-                        category="SESSION_UNRECOVERABLE",
+                        # Keep the real cause (allowlist block, app down, missing secret...);
+                        # a business outcome during sign-on means the session is unusable.
+                        category=error.category if error else "SESSION_UNRECOVERABLE",
                         message=f"required capability {req!r} did not succeed: {detail}",
+                        step_id=error.step_id if error else None,
+                        expected=error.expected if error else None,
+                        observed=error.observed if error else None,
+                        evidence=error.evidence if error else [],
                     ),
                 )
             self._session_done.add(req)
@@ -305,14 +331,22 @@ class ReplayEngine:
         action = step.action
         resolved: Resolved | None = None
 
-        if isinstance(action, Navigate):
-            self._navigate(state, step, action)
-        else:
-            target_name = getattr(action, "target", None)
-            if target_name is not None:
-                resolved = self._resolve(state, step, target_name, deadline)
-            self._gate(state, step, resolved)
-            self._perform(state, step, resolved, deadline)
+        try:
+            if isinstance(action, Navigate):
+                self._navigate(state, step, action)
+            else:
+                target_name = getattr(action, "target", None)
+                if target_name is not None:
+                    resolved = self._resolve(state, step, target_name, deadline)
+                self._gate(state, step, resolved)
+                self._perform(state, step, resolved, deadline)
+        except _CompletedByHuman:
+            self.log.emit(
+                "action_skipped",
+                step=step.id,
+                reason="after the handoff the step's checkpoint already holds: the operator "
+                "completed it, so the action is not repeated",
+            )
 
         self.surface.settle()
         self._verify(state, step, self._deadline(step))
@@ -357,6 +391,7 @@ class ReplayEngine:
                     f"could not find {target_name!r} ({target.description})",
                     expected=f"exactly one visible element for target {target_name!r}",
                     observed=res.describe(),
+                    before_action=True,
                 )
                 deadline = self._deadline(step)  # human resumed: try again
                 continue
@@ -364,7 +399,10 @@ class ReplayEngine:
 
     def _gate(self, state: _Run, step: Step, resolved: Resolved | None) -> None:
         target = getattr(step.action, "target", None)
-        label = self.surface.label_of(resolved) if resolved else ""
+        if isinstance(step.action, Press):
+            label = self.surface.press_label(step.action.key, resolved)
+        else:
+            label = self.surface.label_of(resolved) if resolved else ""
         if target and not label:
             label = state.cap.targets[target].description
         decision = self.policy.check_action(
@@ -418,7 +456,7 @@ class ReplayEngine:
                     error=self._error(
                         state,
                         step,
-                        "APPROVAL_DENIED",
+                        "TIMEOUT" if response.by == "timeout" else "APPROVAL_DENIED",
                         f"{response.by} did not approve: {response.note or 'rejected'}",
                     ),
                 )
@@ -430,13 +468,25 @@ class ReplayEngine:
         while True:
             if isinstance(action, Extract):
                 assert resolved is not None
-                self._extract(state, step, action, resolved)
-                return
-            result = self._do(state, step, resolved)
+                try:
+                    self._extract(state, step, action, resolved)
+                    return
+                except PlaywrightError as exc:  # the element went away while being read
+                    result = ActionResult(False, "not_actionable", str(exc).splitlines()[0])
+            else:
+                result = self._do(state, step, resolved)
             if result.completed:
                 self.log.emit("action_performed", step=step.id, action=action.type)
                 return
-            # The action never completed, so repeating it is safe.
+            if result.kind == "uncertain":
+                # Dispatched but unfinished: it may have reached the app. Never repeat it;
+                # the step's checkpoint decides whether it took effect.
+                self.log.emit(
+                    "action_uncertain", step=step.id, action=action.type, detail=result.detail
+                )
+                return
+            # The action never reached the app, so repeating it is safe.
+            handed_back = False
             if self._handle_known_state(state, step):
                 deadline = max(deadline, self._deadline(step))
             elif time.monotonic() > deadline:
@@ -449,14 +499,19 @@ class ReplayEngine:
                     category,
                     f"{action.type} could not be performed ({result.kind}): {result.detail}",
                     expected=f"{action.type} on an actionable element",
-                    observed=self.surface.text_excerpt(),
+                    observed=self.surface.text_excerpt(masked=True),
+                    before_action=True,
                 )
                 deadline = self._deadline(step)
+                handed_back = True
             else:
                 self.surface.wait(self.poll_ms)
             target_name = getattr(action, "target", None)
             if target_name is not None:  # element may have re-rendered
                 resolved = self._resolve(state, step, target_name, deadline)
+            if handed_back:
+                # A person changed the page: decide again whether this action needs approval.
+                self._gate(state, step, resolved)
 
     def _do(self, state: _Run, step: Step, resolved: Resolved | None) -> ActionResult:
         action = step.action
@@ -546,7 +601,7 @@ class ReplayEngine:
                     "CHECKPOINT_FAILED",
                     f"step {step.id!r} did not reach its expected state",
                     expected=" and ".join(_describe(c) for c in step.expect),
-                    observed=self.surface.text_excerpt(),
+                    observed=self.surface.text_excerpt(masked=True),
                 )
                 deadline = self._deadline(step)
                 continue
@@ -590,7 +645,7 @@ class ReplayEngine:
                     step,
                     known.failure_category,
                     known.description,
-                    observed=self.surface.text_excerpt(),
+                    observed=self.surface.text_excerpt(masked=True),
                 ),
             )
         count = state.step_recoveries.get(step.id, 0) + 1
@@ -714,6 +769,16 @@ class ReplayEngine:
             return
         self.app_version = m.group(1)
         self.log.emit("app_version", version=self.app_version, supported=cap.app.product_versions)
+        declared = self.tenant.config.product_version if self.tenant else None
+        if declared and declared != self.app_version:
+            # The tenant upgraded (or the config is stale): worth a canary run and a look at
+            # its overlays, even if this capability's range still covers the new version.
+            self.log.emit(
+                "tenant_version_changed",
+                tenant=self.tenant.config.tenant if self.tenant else None,
+                declared=declared,
+                detected=self.app_version,
+            )
         if not version_in_range(self.app_version, cap.app.product_versions):
             raise RunStop(
                 "failed",
@@ -741,11 +806,53 @@ class ReplayEngine:
                 category="UNKNOWN_STATE",
                 message=f"application does not match the {self.profile.product!r} profile "
                 f"({self.profile.product_versions}); refusing to run",
-                observed=self.redactor.text(self.surface.text_excerpt()),
+                observed=self.redactor.text(self.surface.text_excerpt(masked=True)),
             ),
         )
 
     # ================================================================== helpers
+
+    def _unexpected(self, state: _Run, exc: Exception) -> RunError:
+        """An exception nothing anticipated still ends the run with a structured result."""
+        category: FailureCategory = (
+            "CONFIGURATION_ERROR"
+            if isinstance(exc, OverlayError | FileNotFoundError)
+            else "INTERNAL_ERROR"
+        )
+        self.log.emit("unexpected_error", error=f"{type(exc).__name__}: {exc}")
+        try:
+            return self._error(state, None, category, f"{type(exc).__name__}: {exc}")
+        except Exception:  # the surface itself may be what broke
+            return RunError(
+                category=category, message=self.redactor.text(f"{type(exc).__name__}: {exc}")
+            )
+
+    def _check_approval(self, cap: Capability) -> Capability:
+        """An approval covers the exact content that was reviewed. If the capability changed
+        after approval (its content hash no longer matches the one recorded), it is run as
+        a draft: irreversible steps go back to needing a person."""
+        if cap.review.status != "approved":
+            return cap
+        recorded = cap.provenance.content_hash
+        if recorded == cap.content_hash():
+            return cap
+        self.log.emit(
+            "approval_void",
+            capability=cap.ref,
+            recorded_hash=recorded,
+            actual_hash=cap.content_hash(),
+            reason="content changed after approval",
+        )
+        return cap.model_copy(
+            update={
+                "review": cap.review.model_copy(
+                    update={
+                        "status": "draft",
+                        "notes": "approval void: content changed after review",
+                    }
+                )
+            }
+        )
 
     def _raise_outcome(self, state: _Run, step: Step, code: str) -> None:
         spec = state.cap.outcomes[code]
@@ -812,9 +919,12 @@ class ReplayEngine:
         *,
         expected: str | None,
         observed: str | None,
+        before_action: bool = False,
     ) -> None:
         """Hard failure; or, with escalation enabled, hand the live session to a human.
-        Returns only if the human resolved it with 'resume'."""
+        Returns only if the human resolved it with 'resume'. With ``before_action``, a resume
+        first checks whether the person already completed the step (its checkpoint holds),
+        so the action is never repeated on top of what they did."""
         error = self._error(state, step, category, message, expected=expected, observed=observed)
         if not self.escalate:
             raise RunStop("failed", error=error)
@@ -827,6 +937,7 @@ class ReplayEngine:
             message=error.message,
             url=self.surface.current_url(),
             screenshot=error.evidence[0] if error.evidence else None,
+            recent_events=self.log.recent(8),
         )
         state.interventions.append(request.id)
         self.log.emit("assist_requested", request=request.__dict__, error=error.model_dump())
@@ -842,12 +953,28 @@ class ReplayEngine:
         if response.resolution == "abort":
             raise RunStop(
                 "escalated",
-                error=error.model_copy(update={"message": f"{error.message} (operator aborted)"}),
+                error=error.model_copy(
+                    update={
+                        "category": "TIMEOUT" if response.by == "timeout" else "HUMAN_ABORTED",
+                        "message": f"{response.note}; after: {error.message}"
+                        if response.by == "timeout"
+                        else f"operator {response.by} aborted after: {error.message}",
+                    }
+                ),
             )
         self.surface.settle()
         if response.resolution == "skip_step":
             raise _SkipStep
+        if before_action and step.expect and all(self._check(c, state) for c in step.expect):
+            raise _CompletedByHuman
 
 
 def _describe(cond: Condition) -> str:
-    return cond.model_dump_json(exclude_defaults=True)
+    """Readable form of a condition for error reports, e.g. ``visible current_balance_value``."""
+    data = cond.model_dump(mode="json", exclude_none=True)
+    kind = data.pop("kind", "")
+    if kind in ("all", "any"):
+        joiner = " and " if kind == "all" else " or "
+        return "(" + joiner.join(_describe(c) for c in getattr(cond, "conditions", [])) + ")"
+    detail = " ".join(str(v) for k, v in data.items() if k not in ("frame", "exact"))
+    return f"{kind} {detail}".strip()

@@ -125,7 +125,8 @@
             "RECOVERY_EXHAUSTED",
             "APPROVAL_DENIED",
             "HUMAN_ABORTED",
-            "CONFIGURATION_ERROR"
+            "CONFIGURATION_ERROR",
+            "INTERNAL_ERROR"
           ],
           "title": "Category",
           "type": "string"

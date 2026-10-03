@@ -23,6 +23,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from playwright.sync_api import Error as PlaywrightError
+
 from cua.agent.llm import LLMClient, ToolCall
 from cua.agent.prompting import TOOLS, render_observation, system_prompt
 from cua.evidence.log import EventLog, utcnow
@@ -249,7 +251,10 @@ class DiscoveryAgent:
                 )
             except (KeyError, LookupError) as exc:
                 return False, f"cannot identify {ref} reliably: {exc}"
-        label = (element.name or element.text) if element else ""
+        if tool == "press":
+            label = self.surface.press_label(str(args.get("key", "")), resolved)
+        else:
+            label = (element.name or element.text) if element else ""
         decision = self.policy.check_action(tool, label=label, mode="discovery")
         step = TraceStep(
             index=len(self._steps),
@@ -307,7 +312,10 @@ class DiscoveryAgent:
         if tool == "extract":
             assert resolved is not None
             output = str(args["output"])
-            text = self.surface.read_text(resolved)
+            try:
+                text = self.surface.read_text(resolved)
+            except PlaywrightError as exc:
+                return False, f"could not read that element: {str(exc).splitlines()[0]}"
             spec = self._spec.outputs[output]
             try:
                 value = parse_value(text, _PARSE_FOR[spec.type])
@@ -327,6 +335,20 @@ class DiscoveryAgent:
             return True, f"extracted {output}"
 
         result = self._perform(tool, args, resolved)
+        if result.kind == "uncertain":
+            # Sent, but the page had not finished responding: it may have taken effect.
+            self.surface.settle()
+            self._record(
+                step.model_copy(
+                    update={"url_after": self.surface.current_url(), "detail": result.detail}
+                )
+            )
+            return (
+                True,
+                "the action was sent but the page had not finished responding; it may have "
+                "taken effect. Check the new observation before doing anything else, and do "
+                "not repeat it.",
+            )
         if not result.completed:
             self._record(step.model_copy(update={"result": "error", "detail": result.detail}))
             return False, f"{tool} failed ({result.kind}): {result.detail}"

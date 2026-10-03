@@ -96,7 +96,11 @@ Resolution = Resolved | Unresolved
 @dataclass(frozen=True)
 class ActionResult:
     completed: bool
-    kind: Literal["ok", "not_actionable", "detached", "error"] = "ok"
+    kind: Literal["ok", "not_actionable", "detached", "error", "uncertain"] = "ok"
+    """``not_actionable``/``detached``/``error``: nothing reached the app, so the action may
+    be tried again. ``uncertain``: the input was dispatched but did not finish in time (e.g.
+    a click whose request is still in flight); it may have taken effect, so it must never be
+    repeated, only verified."""
     detail: str | None = None
 
 

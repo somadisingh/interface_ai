@@ -6,6 +6,8 @@
 schema_version: "1.0"
 name: mockcore-local
 
+# Local MockCore instances on any port. The runtime additionally denies the origin of its
+# own operator page, so automation can never drive the console that supervises it.
 allowed_origins:
   - "http://127.0.0.1:*"
   - "http://localhost:*"
@@ -53,3 +55,4 @@ risk:
 limits:
   max_discovery_steps: 40
   max_run_seconds: 300
+  max_wait_for_human_seconds: 900

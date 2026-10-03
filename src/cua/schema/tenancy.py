@@ -136,6 +136,15 @@ def apply_overlay(cap: Capability, overlay: CapabilityOverlay) -> Capability:
             raise OverlayError(f"cannot insert after unknown step {insertion.after!r}")
         at = ids.index(insertion.after) + 1
         data["steps"][at:at] = [s.model_dump(mode="json") for s in insertion.steps]
+    if data["review"]["status"] == "approved":
+        # Approval covers what the reviewer read: the base capability. An overlay can change
+        # targets and add steps, so the effective capability runs as a draft (irreversible
+        # steps need a person) until overlays get a review of their own.
+        data["review"] = {
+            "status": "draft",
+            "notes": f"tenant overlay ({overlay.tenant}) applied: the base capability's "
+            "approval does not carry over",
+        }
     return Capability.model_validate(data)
 
 

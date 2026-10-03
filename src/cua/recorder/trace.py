@@ -104,6 +104,8 @@ class Templater:
         if isinstance(obj, str):
             return self.text(obj)
         if isinstance(obj, dict):
+            if obj.get("strategy") == "css":
+                return obj  # a selector is structure, not data: "(1)" is never member 1
             return {k: (v if k == "strategy" else self._walk(v)) for k, v in obj.items()}
         if isinstance(obj, list):
             return [self._walk(v) for v in obj]

@@ -556,7 +556,8 @@
                 "RECOVERY_EXHAUSTED",
                 "APPROVAL_DENIED",
                 "HUMAN_ABORTED",
-                "CONFIGURATION_ERROR"
+                "CONFIGURATION_ERROR",
+                "INTERNAL_ERROR"
               ],
               "type": "string"
             },
@@ -1062,6 +1063,13 @@
     },
     "session": {
       "$ref": "#/$defs/SessionConfig"
+    },
+    "sensitive_fields": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Sensitive Fields",
+      "type": "array"
     },
     "targets": {
       "patternProperties": {

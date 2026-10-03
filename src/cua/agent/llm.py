@@ -257,6 +257,13 @@ def make_llm(provider: str | None = None, model: str | None = None) -> LLMClient
     if not chosen:
         hint = model or os.environ.get("CUA_MODEL") or ""
         chosen = "gemini" if hint.startswith("gemini") else "anthropic"
+    keys = {"gemini": ("GEMINI_API_KEY", "GOOGLE_API_KEY"), "anthropic": ("ANTHROPIC_API_KEY",)}
+    if chosen in keys and not any(os.environ.get(k) for k in keys[chosen]):
+        # Fail before a browser opens and signs on, not after.
+        raise ValueError(
+            f"{keys[chosen][0]} is not set: add it to .env to run discovery with {chosen} "
+            "(replay needs no key)"
+        )
     if chosen == "gemini":
         return GeminiClient(model)
     if chosen == "anthropic":

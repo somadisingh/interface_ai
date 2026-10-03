@@ -36,6 +36,9 @@ class RiskRules(Model):
 class Limits(Model):
     max_discovery_steps: int = Field(default=40, gt=0, le=200)
     max_run_seconds: int = Field(default=300, gt=0, le=3600)
+    max_wait_for_human_seconds: int = Field(default=900, gt=0, le=86_400)
+    """How long a request may sit unclaimed before the run gives up on it (an approval is
+    then refused, an assist aborted). Once a person has taken control there is no limit."""
 
 
 class Policy(Model):
@@ -76,6 +79,8 @@ def _origin(url: str) -> tuple[str, str]:
 class PolicyEngine:
     def __init__(self, policy: Policy) -> None:
         self.policy = policy
+        self.denied_origins: set[str] = set()
+        """Origins denied at runtime whatever the allowlist says (e.g. the operator page)."""
         self._irreversible = self._compile(policy.risk.irreversible_keywords)
         self._reversible = self._compile(policy.risk.reversible_write_keywords)
 
@@ -93,6 +98,8 @@ class PolicyEngine:
         if url.startswith(("about:", "data:")):
             return Decision("allow", "internal browser URL")
         origin, path = _origin(url)
+        if origin in self.denied_origins:
+            return Decision("deny", f"origin {origin} is reserved (the operator console)")
         if not any(fnmatch.fnmatchcase(origin, p) for p in self.policy.allowed_origins):
             return Decision("deny", f"origin {origin} is not in the allowlist")
         for pattern in self.policy.denied_paths:

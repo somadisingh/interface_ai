@@ -19,6 +19,8 @@ rejects, and control returns to automation.
 
 from __future__ import annotations
 
+import contextlib
+import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
@@ -45,12 +47,14 @@ class OperatorChannel:
         *,
         poll_ms: int = 200,
         simulate_operator: Callable[[WebSurface], None] | None = None,
+        max_wait_seconds: float = 900,
     ) -> None:
         self.surface = surface
         self.control = control
         self.queue = queue
         self.log = log
         self.poll_ms = poll_ms
+        self.max_wait_seconds = max_wait_seconds
         self._simulate = simulate_operator
         """Test/demo hook: runs in the automation thread once a person has taken control,
         standing in for them with raw mouse/keyboard input on the same page."""
@@ -88,7 +92,8 @@ class OperatorChannel:
             reason=f"approval needed: {request.action}",
         )
         ticket = self.queue.submit("approval", request)
-        self._wait(ticket)
+        note = f"no operator responded within {self.max_wait_seconds:.0f}s"
+        self._wait(ticket, {"approved": False, "by": "timeout", "note": note})
         res = ticket.resolution or {}
         approved = bool(res.get("approved"))
         by = str(res.get("by", "operator"))
@@ -106,7 +111,8 @@ class OperatorChannel:
         )
         ticket = self.queue.submit("assist", request)
         first = len(self.human_actions)
-        self._wait(ticket)
+        note = f"no operator responded within {self.max_wait_seconds:.0f}s"
+        self._wait(ticket, {"resolution": "abort", "by": "timeout", "note": note})
         res = ticket.resolution or {}
         resolution = res.get("resolution", "abort")
         by = str(res.get("by", "operator"))
@@ -115,9 +121,20 @@ class OperatorChannel:
         )
         return AssistResponse(resolution, by, res.get("note"), self.human_actions[first:])
 
-    def _wait(self, ticket: Ticket) -> None:
+    def _wait(self, ticket: Ticket, on_timeout: dict[str, Any]) -> None:
+        """Pump the browser until the request is resolved. A request nobody claims within
+        ``max_wait_seconds`` is resolved with ``on_timeout``; once a person has taken
+        control, they are never interrupted."""
         simulated = False
+        deadline = time.monotonic() + self.max_wait_seconds
         while ticket.open:
+            if self.control.state != "human" and time.monotonic() > deadline:
+                with contextlib.suppress(ValueError):  # the operator resolved it just now
+                    self.queue.resolve(ticket.id, on_timeout)
+                self.log.emit(
+                    "request_timed_out", request_id=ticket.id, after_s=self.max_wait_seconds
+                )
+                break
             if self._simulate and not simulated and self.control.state == "human":
                 simulated = True
                 self._simulate(self.surface)
